@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ATIS — Aviation Weather</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c12;
+    --panel: #0d1520;
+    --panel2: #111c2c;
+    --border: #1a2b40;
+    --accent: #00d4ff;
+    --accent2: #ffaa00;
+    --green: #39ff6a;
+    --warn: #ffd60a;
+    --red: #ff4455;
+    --text: #b8cce8;
+    --muted: #3e5570;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Barlow Condensed', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { min-height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow-x: hidden; }
+
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 999; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+  }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 18px 10px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #0b1520 0%, var(--bg) 100%);
+  }
+  .logo { font-family: var(--mono); font-size: 11px; letter-spacing: 0.3em; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+  .logo-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: blink 1.4s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  .logo-sub { color: var(--muted); font-size: 9px; letter-spacing: 0.15em; font-family: var(--mono); }
+  #clock { font-family: var(--mono); font-size: 9px; color: var(--muted); text-align: right; letter-spacing: 0.1em; line-height: 1.6; }
+
+  .search-bar { display: flex; gap: 8px; padding: 12px 18px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  .search-input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    color: var(--accent); font-family: var(--mono); font-size: 22px;
+    letter-spacing: 0.25em; text-transform: uppercase;
+    padding: 9px 14px; border-radius: 4px; outline: none; transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  .search-input::placeholder { color: var(--muted); font-size: 13px; letter-spacing: 0.1em; }
+  .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,212,255,0.1); }
+  .btn {
+    background: var(--accent); color: #000; font-family: var(--sans); font-weight: 700;
+    font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase;
+    border: none; padding: 9px 20px; border-radius: 4px; cursor: pointer;
+    transition: background 0.15s, transform 0.1s; -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: scale(0.96); background: #00b8d9; }
+
+  .status-bar {
+    padding: 5px 18px; font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.1em; color: var(--muted); border-bottom: 1px solid var(--border);
+    min-height: 26px; display: flex; align-items: center; gap: 10px;
+  }
+  .tag { color: var(--green); } .err { color: var(--red); }
+
+  main { padding: 14px 18px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── Side-by-side layout ── */
+  .side-by-side {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    align-items: start;
+  }
+  @media (max-width: 660px) {
+    .side-by-side { grid-template-columns: 1fr; }
+  }
+
+  /* Cards */
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .card-header {
+    padding: 7px 12px; background: var(--panel2); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase;
+  }
+  .card-header .dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .card-body { padding: 12px; }
+
+  /* Raw METAR */
+  .raw-metar { font-family: var(--mono); font-size: 12px; line-height: 1.8; color: var(--accent); word-break: break-all; letter-spacing: 0.04em; }
+
+  /* Parsed grid */
+  .parsed-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .parsed-item { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 9px 10px; }
+  .parsed-label { font-family: var(--mono); font-size: 8px; letter-spacing: 0.2em; color: var(--muted); text-transform: uppercase; margin-bottom: 3px; }
+  .parsed-value { font-family: var(--mono); font-size: 15px; color: var(--text); }
+  .parsed-value.big { font-size: 20px; color: var(--accent); }
+  .parsed-value.warn { color: var(--warn); }
+  .parsed-value.good { color: var(--green); }
+  .parsed-value.danger { color: var(--red); }
+
+  /* Flight rules */
+  .fr-badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-family: var(--mono); font-size: 13px; letter-spacing: 0.15em; font-weight: bold; }
+  .fr-VFR  { background: rgba(57,255,106,0.12); color: var(--green);   border: 1px solid var(--green); }
+  .fr-MVFR { background: rgba(0,212,255,0.12);  color: var(--accent);  border: 1px solid var(--accent); }
+  .fr-IFR  { background: rgba(255,170,0,0.12);  color: var(--accent2); border: 1px solid var(--accent2); }
+  .fr-LIFR { background: rgba(255,68,85,0.12);  color: var(--red);     border: 1px solid var(--red); }
+
+  /* Clouds */
+  .clouds-list { display: flex; flex-direction: column; gap: 5px; }
+  .cloud-row { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 12px; }
+  .cloud-cover { width: 40px; color: var(--warn); }
+  .cloud-alt { color: var(--text); }
+  .cloud-type { color: var(--muted); font-size: 10px; }
+
+  /* Runway canvas */
+  #runway-canvas-wrap {
+    display: flex; justify-content: center; align-items: center;
+    padding: 12px;
+    background: radial-gradient(ellipse at center, #091522 0%, var(--bg) 75%);
+    min-height: 320px;
+  }
+  canvas#rwCanvas { max-width: 100%; touch-action: none; display: block; }
+
+  .wind-legend {
+    display: flex; align-items: center; gap: 7px;
+    font-family: var(--mono); font-size: 9px; color: var(--muted);
+    letter-spacing: 0.1em; padding: 0 12px 10px;
+  }
+  .wl-swatch { width: 14px; height: 2px; background: var(--accent2); display: inline-block; }
+
+  /* Spinner / empty */
+  .spinner {
+    width: 26px; height: 26px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.7s linear infinite; margin: 28px auto; display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty-state { text-align: center; padding: 50px 20px; font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.15em; line-height: 2.2; }
+  .empty-state .big-txt { font-size: 40px; letter-spacing: 0.3em; color: var(--border); display: block; margin-bottom: 10px; }
+  .section-wrap { display: none; }
+  .section-wrap.visible { display: flex; flex-direction: column; gap: 14px; }
+
+  .station-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo"><div class="logo-dot"></div> ATIS VIEWER</div>
+    <div class="logo-sub">AVIATION WEATHER &amp; RUNWAY</div>
+  </div>
+  <div id="clock"></div>
+</header>
+
+<div class="search-bar">
+  <input class="search-input" id="icaoInput" type="text" maxlength="4"
+    placeholder="ICAO (e.g. KFRG)" autocomplete="off" autocorrect="off"
+    spellcheck="false" autocapitalize="characters">
+  <button class="btn" onclick="fetchData()">FETCH</button>
+</div>
+
+<div class="status-bar" id="statusBar"><span>AWAITING INPUT</span></div>
+
+<main>
+  <div class="spinner" id="spinner"></div>
+  <div class="empty-state" id="emptyState">
+    <span class="big-txt">✈</span>
+    ENTER ICAO CODE ABOVE<br>TO RETRIEVE METAR &amp; RUNWAY DATA
+  </div>
+
+  <div class="section-wrap" id="sections">
+
+    <!-- Row 1: DECODED + RUNWAY DIAGRAM side by side -->
+    <div class="side-by-side">
+
+      <!-- Left: Decoded METAR -->
+      <div class="card">
+        <div class="card-header"><div class="dot" style="background:var(--warn)"></div>DECODED</div>
+        <div class="card-body">
+          <div class="parsed-grid" id="parsedGrid"></div>
+        </div>
+      </div>
+
+      <!-- Right: Runway / Wind Rose -->
+      <div class="card">
+        <div class="card-header"><div class="dot" style="background:var(--accent)"></div>RUNWAY DIAGRAM &amp; WIND ROSE</div>
+        <div id="runway-canvas-wrap">
+          <canvas id="rwCanvas"></canvas>
+        </div>
+        <div class="wind-legend">
+          <span class="wl-swatch"></span>
+          ORANGE ARROW = WIND FROM DIRECTION &nbsp;|&nbsp; BARBS = SPEED (10kt each)
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Row 2: Raw METAR full width -->
+    <div class="card">
+      <div class="card-header"><div class="dot" style="background:var(--green)"></div>RAW METAR</div>
+      <div class="card-body">
+        <div class="raw-metar" id="rawMetar"></div>
+      </div>
+    </div>
+
+    <!-- Row 3: Sky conditions + Station Info side by side -->
+    <div class="side-by-side">
+      <div class="card" id="cloudCard">
+        <div class="card-header"><div class="dot" style="background:var(--muted)"></div>SKY CONDITION</div>
+        <div class="card-body clouds-list" id="cloudList"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="dot" style="background:var(--accent2)"></div>STATION INFO</div>
+        <div class="card-body station-grid" id="stationGrid"></div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+const TOKEN = '62G41L7IH8f-X4IbQwmHvIM5wfHhYrkRMJFaDmilWHM';
+let metarData = null, stationData = null;
+
+function updateClock() {
+  const now = new Date();
+  const z = n => String(n).padStart(2,'0');
+  document.getElementById('clock').innerHTML =
+    `${now.getUTCFullYear()}-${z(now.getUTCMonth()+1)}-${z(now.getUTCDate())}<br>${z(now.getUTCHours())}:${z(now.getUTCMinutes())}:${z(now.getUTCSeconds())} UTC`;
+}
+setInterval(updateClock, 1000); updateClock();
+
+document.getElementById('icaoInput').addEventListener('keydown', e => { if (e.key === 'Enter') fetchData(); });
+
+function setStatus(msg, cls='') {
+  document.getElementById('statusBar').innerHTML = `<span class="${cls}">${msg}</span>`;
+}
+
+async function fetchData() {
+  const icao = document.getElementById('icaoInput').value.trim().toUpperCase();
+  if (icao.length < 3) { setStatus('ENTER VALID ICAO CODE', 'err'); return; }
+  document.getElementById('spinner').style.display = 'block';
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('sections').classList.remove('visible');
+  setStatus(`FETCHING ${icao}...`, 'tag');
+  try {
+    const [mRes, sRes] = await Promise.all([
+      fetch(`https://avwx.rest/api/metar/${icao}?token=${TOKEN}`),
+      fetch(`https://avwx.rest/api/station/${icao}?token=${TOKEN}`)
+    ]);
+    if (!mRes.ok) throw new Error(`METAR ${mRes.status}: ${mRes.statusText}`);
+    if (!sRes.ok) throw new Error(`STATION ${sRes.status}: ${sRes.statusText}`);
+    metarData   = await mRes.json();
+    stationData = await sRes.json();
+    renderAll(icao);
+    setStatus(`✓ ${icao} — ${metarData.time?.repr || ''} UTC`, 'tag');
+  } catch(e) {
+    setStatus(`ERROR: ${e.message}`, 'err');
+    document.getElementById('emptyState').style.display = 'block';
+    document.getElementById('emptyState').innerHTML = `<span class="big-txt">!</span>FETCH ERROR<br>${e.message}`;
+  } finally {
+    document.getElementById('spinner').style.display = 'none';
+  }
+}
+
+function renderAll(icao) {
+  renderRawMetar();
+  renderParsedMetar();
+  renderClouds();
+  renderStation(icao);
+  document.getElementById('sections').classList.add('visible');
+  requestAnimationFrame(renderRunwayDiagram);
+}
+
+function renderRawMetar() {
+  document.getElementById('rawMetar').textContent = metarData.raw || metarData.sanitized || '';
+}
+
+function flightRules(vis, ceiling) {
+  if (ceiling < 500  || vis < 1) return 'LIFR';
+  if (ceiling < 1000 || vis < 3) return 'IFR';
+  if (ceiling < 3000 || vis <= 5) return 'MVFR';
+  return 'VFR';
+}
+
+function calcRH(t, d) {
+  if (t === '---' || d === '---') return '---';
+  return `${Math.round(100 * Math.exp((17.625*d/(243.04+d)) - (17.625*t/(243.04+t))))}%`;
+}
+
+function renderParsedMetar() {
+  const m = metarData;
+  const u = m.units || {};
+  const wd   = m.wind_direction?.value ?? m.wind_direction?.repr ?? '---';
+  const ws   = m.wind_speed?.value ?? '---';
+  const wg   = m.wind_gust?.value ? `G${m.wind_gust.value}` : '';
+  const vis  = m.visibility?.value ?? '---';
+  const temp = m.temperature?.value ?? '---';
+  const dew  = m.dewpoint?.value ?? '---';
+  const alt  = m.altimeter?.value ?? '---';
+  const time = m.time?.repr ?? '---';
+  const wx   = (m.wx_codes || []).map(w => w.value).join(', ') || '---';
+
+  let ceiling = 99999;
+  (m.clouds || []).forEach(c => {
+    if (['BKN','OVC','VV'].includes(c.type) && c.altitude != null)
+      ceiling = Math.min(ceiling, c.altitude * 100);
+  });
+  const ceilStr = ceiling < 99999 ? `${ceiling.toLocaleString()} ft` : 'CLEAR';
+  const fr = flightRules(typeof vis === 'number' ? vis : 99, ceiling);
+  const spread = (temp !== '---' && dew !== '---') ? Math.abs(temp - dew).toFixed(1) : '---';
+
+  const items = [
+    { label: 'FLIGHT RULES',    html: `<span class="fr-badge fr-${fr}">${fr}</span>` },
+    { label: 'OBS TIME',        val: time },
+    { label: 'WIND DIRECTION',  val: wd === 'VRB' ? 'VRB' : `${String(wd).padStart(3,'0')}°`, cls: 'big' },
+    { label: 'WIND SPEED',      val: `${ws}${wg} ${u.wind_speed||'kt'}`, cls: 'big' },
+    { label: 'VISIBILITY',      val: `${vis} ${u.visibility||'sm'}`, cls: typeof vis === 'number' && vis < 3 ? 'warn' : 'good' },
+    { label: 'CEILING',         val: ceilStr, cls: ceiling < 1000 ? 'danger' : ceiling < 3000 ? 'warn' : '' },
+    { label: 'TEMPERATURE',     val: `${temp}°C` },
+    { label: 'DEWPOINT',        val: `${dew}°C  ΔT: ${spread}°C` },
+    { label: 'ALTIMETER',       val: `${alt} ${u.altimeter||'inHg'}`, cls: 'big' },
+    { label: 'WX',              val: wx, cls: wx !== '---' ? 'warn' : '' },
+  ];
+
+  document.getElementById('parsedGrid').innerHTML = items.map(i =>
+    `<div class="parsed-item">
+      <div class="parsed-label">${i.label}</div>
+      <div class="parsed-value ${i.cls||''}">${i.html || i.val}</div>
+    </div>`
+  ).join('');
+}
+
+function renderClouds() {
+  const clouds = metarData.clouds || [];
+  const card = document.getElementById('cloudCard');
+  const list = document.getElementById('cloudList');
+  if (!clouds.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  list.innerHTML = clouds.map(c => {
+    const alt = c.altitude != null ? `${c.altitude*100} ft AGL` : 'SURFACE';
+    return `<div class="cloud-row">
+      <span class="cloud-cover">${c.type}</span>
+      <span class="cloud-alt">${alt}</span>
+      <span class="cloud-type">${c.modifier||''}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderStation(icao) {
+  const s = stationData;
+  const items = [
+    { label: 'ICAO',      val: s.icao || icao },
+    { label: 'NAME',      val: s.name || '---' },
+    { label: 'ELEVATION', val: s.elevation_ft != null ? `${s.elevation_ft} ft` : '---' },
+    { label: 'COORDS',    val: s.latitude != null ? `${s.latitude.toFixed(3)}, ${s.longitude.toFixed(3)}` : '---' },
+    { label: 'RUNWAYS',   val: (s.runways||[]).length || '---' },
+    { label: 'COUNTRY',   val: s.country || '---' },
+  ];
+  document.getElementById('stationGrid').innerHTML = items.map(i =>
+    `<div class="parsed-item">
+      <div class="parsed-label">${i.label}</div>
+      <div class="parsed-value">${i.val}</div>
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+//  RUNWAY DIAGRAM  — with proper parallel runway support
+// ═══════════════════════════════════════════════════════
+
+function renderRunwayDiagram() {
+  const runways = stationData.runways || [];
+  const canvas = document.getElementById('rwCanvas');
+  const wrap   = document.getElementById('runway-canvas-wrap');
+  const ww     = wrap.clientWidth > 0 ? wrap.clientWidth - 24 : 300;
+  const size   = Math.max(260, Math.min(ww, 460));
+  canvas.width  = size;
+  canvas.height = size;
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, size, size);
+
+  const cx = size / 2, cy = size / 2;
+  const R  = Math.max(110, size / 2 - 24);
+
+  // ── Background disc ──
+  ctx.save();
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+  grad.addColorStop(0,   '#091524');
+  grad.addColorStop(0.7, '#060c14');
+  grad.addColorStop(1,   '#04080f');
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI*2);
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.strokeStyle = '#1a2b40'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.restore();
+
+  // ── Concentric rings ──
+  [0.35, 0.65, 0.88].forEach(f => {
+    ctx.beginPath(); ctx.arc(cx, cy, R*f, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(26,43,64,0.6)'; ctx.lineWidth = 0.6; ctx.stroke();
+  });
+
+  // ── Radial grid lines ──
+  for (let d = 0; d < 360; d += 30) {
+    const a = (d - 90) * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(cx + R*0.35*Math.cos(a), cy + R*0.35*Math.sin(a));
+    ctx.lineTo(cx + R*0.88*Math.cos(a), cy + R*0.88*Math.sin(a));
+    ctx.strokeStyle = 'rgba(26,43,64,0.35)'; ctx.lineWidth = 0.5; ctx.stroke();
+  }
+
+  // ── Degree tick marks ──
+  for (let d = 0; d < 360; d += 5) {
+    const a   = (d - 90) * Math.PI / 180;
+    const maj = d % 30 === 0, med = d % 10 === 0;
+    const r1  = R - (maj ? 15 : med ? 9 : 5);
+    ctx.beginPath();
+    ctx.moveTo(cx + r1*Math.cos(a), cy + r1*Math.sin(a));
+    ctx.lineTo(cx + (R-1)*Math.cos(a), cy + (R-1)*Math.sin(a));
+    ctx.strokeStyle = maj ? '#253a55' : '#162230';
+    ctx.lineWidth   = maj ? 1.2 : 0.5;
+    ctx.stroke();
+  }
+
+  // ── Compass labels ──
+  const compass = [
+    {l:'N',d:0,big:true,c:'#ff6b35'}, {l:'NE',d:45,big:false,c:'#2a3f58'},
+    {l:'E', d:90,big:true,c:'#3a5470'},{l:'SE',d:135,big:false,c:'#2a3f58'},
+    {l:'S', d:180,big:true,c:'#3a5470'},{l:'SW',d:225,big:false,c:'#2a3f58'},
+    {l:'W', d:270,big:true,c:'#3a5470'},{l:'NW',d:315,big:false,c:'#2a3f58'},
+  ];
+  compass.forEach(({l, d, big, c}) => {
+    const a    = (d - 90) * Math.PI / 180;
+    const dist = big ? R - 20 : R - 18;
+    ctx.font = `${big ? 12 : 9}px "Share Tech Mono"`;
+    ctx.fillStyle = c; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(l, cx + dist*Math.cos(a), cy + dist*Math.sin(a));
+  });
+
+  // ═══════════════════════════════════════════════
+  //  PARALLEL RUNWAY GROUPING
+  //  Group runways that share the same magnetic axis
+  //  (heading mod 180, rounded to nearest 10°).
+  //  Within each group sort by suffix L→C→R so
+  //  spacing matches real-world geometry.
+  // ═══════════════════════════════════════════════
+  const groups = {};
+  runways.forEach(rw => {
+    const hdg = rw.heading_deg ?? (parseFloat(rw.ident1) * 10);
+    if (!isFinite(hdg) || isNaN(hdg)) return;
+    // Normalise: group reciprocal headings under same key (0-179)
+    const norm = ((Math.round(hdg / 10) * 10) % 180 + 180) % 180;
+    if (!groups[norm]) groups[norm] = [];
+    groups[norm].push({ rw, hdg });
+  });
+
+  const rwLen = R * 0.62;
+  const rwW   = Math.max(6, size * 0.025);
+
+  // Perpendicular offset between parallels — scales with runway width
+  // Use tighter spacing for 3 runways to keep them inside the rose
+  const getSpacing = count => count === 3 ? rwW * 2.2 : rwW * 2.5;
+
+  Object.values(groups).forEach(entries => {
+    const count   = entries.length;
+    const spacing = getSpacing(count);
+
+    // Sort by suffix L < C/none < R so left is geometrically left
+    entries.sort((a, b) => {
+      const rank = id => {
+        if (!id) return 1;
+        const s = id.toUpperCase();
+        if (s.endsWith('L')) return 0;
+        if (s.endsWith('C')) return 1;
+        if (s.endsWith('R')) return 2;
+        return 1;
+      };
+      return rank(a.rw.ident1) - rank(b.rw.ident1);
+    });
+
+    // Offsets centred at 0
+    const offsets = [];
+    if (count === 1) {
+      offsets.push(0);
+    } else if (count === 2) {
+      offsets.push(-spacing / 2, spacing / 2);
+    } else {
+      offsets.push(-spacing, 0, spacing);
+    }
+
+    entries.forEach(({rw, hdg}, idx) => {
+      const rad   = (hdg - 90) * Math.PI / 180;
+      const perpX =  Math.sin(rad);   // unit vector perpendicular (right-hand)
+      const perpY = -Math.cos(rad);
+      const ox    = perpX * offsets[idx];
+      const oy    = perpY * offsets[idx];
+
+      // Endpoints of this runway strip
+      const x1 = cx + ox + (rwLen/2)*Math.cos(rad);
+      const y1 = cy + oy + (rwLen/2)*Math.sin(rad);
+      const x2 = cx + ox - (rwLen/2)*Math.cos(rad);
+      const y2 = cy + oy - (rwLen/2)*Math.sin(rad);
+
+      const px = perpX * rwW / 2;
+      const py = perpY * rwW / 2;
+
+      // ── Runway surface ──
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,180,255,0.18)'; ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(x1+px, y1+py); ctx.lineTo(x1-px, y1-py);
+      ctx.lineTo(x2-px, y2-py); ctx.lineTo(x2+px, y2+py);
+      ctx.closePath();
+      ctx.fillStyle = '#16253a'; ctx.fill();
+      ctx.strokeStyle = '#00d4ff'; ctx.lineWidth = 1.2; ctx.stroke();
+      ctx.restore();
+
+      // ── Threshold stripes ──
+      const nStripes = 4;
+      [x1, x2].forEach((ex, end) => {
+        const ey      = end === 0 ? y1 : y2;
+        const inSign  = end === 0 ? -1 : 1;
+        const sw      = (rwW * 0.7) / (nStripes * 2 - 1);
+        for (let s = 0; s < nStripes; s++) {
+          const sOff = (s - (nStripes - 1) / 2) * sw * 2;
+          const bx   = ex + perpX*sOff + Math.cos(rad)*inSign*(rwW*0.1);
+          const by   = ey + perpY*sOff + Math.sin(rad)*inSign*(rwW*0.1);
+          ctx.beginPath();
+          ctx.moveTo(bx - Math.cos(rad)*rwW*0.25, by - Math.sin(rad)*rwW*0.25);
+          ctx.lineTo(bx + Math.cos(rad)*rwW*0.25, by + Math.sin(rad)*rwW*0.25);
+          ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = sw * 0.65; ctx.stroke();
+        }
+      });
+
+      // ── Centerline dashes ──
+      ctx.setLineDash([5, 6]);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+      ctx.strokeStyle = 'rgba(0,212,255,0.22)'; ctx.lineWidth = 0.7; ctx.stroke();
+      ctx.setLineDash([]);
+
+      // ── Runway number labels ──
+      const fontSize = Math.max(9, size * 0.024);
+      ctx.font = `bold ${fontSize}px "Share Tech Mono"`;
+      ctx.fillStyle = '#ffd60a';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const lblOff = rwLen / 2 + 14;
+      ctx.fillText(rw.ident1 || '', cx + ox + lblOff*Math.cos(rad),  cy + oy + lblOff*Math.sin(rad));
+      ctx.fillText(rw.ident2 || '', cx + ox - lblOff*Math.cos(rad),  cy + oy - lblOff*Math.sin(rad));
+    });
+  });
+
+  // ═══════════════════════════════════════════════
+  //  WIND ARROW
+  // ═══════════════════════════════════════════════
+  const wd = metarData.wind_direction?.value;
+  const ws = metarData.wind_speed?.value || 0;
+
+  if (wd != null && wd !== 'VRB') {
+    const windRad  = (wd - 90) * Math.PI / 180;
+    const arrowLen = R * 0.53;
+    const fromX    = cx + arrowLen * Math.cos(windRad);
+    const fromY    = cy + arrowLen * Math.sin(windRad);
+
+    ctx.save();
+    ctx.shadowColor = '#ffaa00'; ctx.shadowBlur = 18;
+
+    // Shaft
+    ctx.beginPath(); ctx.moveTo(fromX, fromY); ctx.lineTo(cx, cy);
+    ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 2.5; ctx.stroke();
+
+    // Arrowhead pointing toward center
+    const headA   = Math.atan2(cy - fromY, cx - fromX);
+    const headLen = 14;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx - headLen*Math.cos(headA - 0.40), cy - headLen*Math.sin(headA - 0.40));
+    ctx.lineTo(cx - headLen*Math.cos(headA + 0.40), cy - headLen*Math.sin(headA + 0.40));
+    ctx.closePath(); ctx.fillStyle = '#ffaa00'; ctx.fill();
+
+    // Speed barbs (each barb = 10 kt)
+    const barbs = Math.floor(ws / 10);
+    for (let b = 0; b < Math.min(barbs, 6); b++) {
+      const t  = 0.18 + b * 0.11;
+      const bx = fromX + (cx - fromX) * t;
+      const by = fromY + (cy - fromY) * t;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + 11*Math.cos(windRad + Math.PI*0.7), by + 11*Math.sin(windRad + Math.PI*0.7));
+      ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    // Half-barb for 5 kt remainder
+    if (ws % 10 >= 5) {
+      const t  = 0.18 + Math.min(barbs, 6) * 0.11;
+      const bx = fromX + (cx - fromX) * t;
+      const by = fromY + (cy - fromY) * t;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + 6*Math.cos(windRad + Math.PI*0.7), by + 6*Math.sin(windRad + Math.PI*0.7));
+      ctx.strokeStyle = '#ffaa00'; ctx.lineWidth = 1.2; ctx.stroke();
+    }
+    ctx.restore();
+
+    // Wind readout label
+    ctx.save();
+    const labelDist = arrowLen + 20;
+    const lx = cx + labelDist * Math.cos(windRad);
+    const ly = cy + labelDist * Math.sin(windRad);
+    const clampX = Math.min(size - 34, Math.max(34, lx));
+    const clampY = Math.min(size - 24, Math.max(8,  ly));
+    ctx.font = `bold ${Math.max(11, size*0.030)}px "Share Tech Mono"`;
+    ctx.fillStyle = '#ffaa00'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(`${String(wd).padStart(3,'0')}°`, clampX, clampY);
+    ctx.font = `${Math.max(9, size*0.022)}px "Share Tech Mono"`;
+    ctx.fillStyle = 'rgba(255,170,0,0.72)';
+    ctx.fillText(`${ws}kt`, clampX, clampY + 15);
+    ctx.restore();
+
+  } else if (wd === 'VRB') {
+    ctx.beginPath(); ctx.arc(cx, cy, 22, 0, Math.PI*2);
+    ctx.strokeStyle = '#ffaa00'; ctx.setLineDash([3,4]); ctx.lineWidth = 2; ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '9px "Share Tech Mono"'; ctx.fillStyle = '#ffaa00';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('VRB', cx, cy);
+  }
+
+  // Center dot
+  ctx.beginPath(); ctx.arc(cx, cy, 3.5, 0, Math.PI*2);
+  ctx.fillStyle = '#00d4ff'; ctx.fill();
+}
+
+window.addEventListener('resize', () => { if (metarData && stationData) renderRunwayDiagram(); });
+</script>
+</body>
+</html>

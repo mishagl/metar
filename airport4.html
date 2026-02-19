@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ATIS — Aviation Weather</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0d12;
+    --panel: #0e1420;
+    --panel2: #131a28;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --green: #39ff6a;
+    --warn: #ffd60a;
+    --text: #c8d8f0;
+    --muted: #4a6080;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Barlow Condensed', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow-x: hidden; }
+
+  /* Scanline overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 999; pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
+  }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #0d1520 0%, var(--bg) 100%);
+  }
+  .logo {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.3em;
+    color: var(--accent); text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .logo-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: blink 1.4s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  .logo-sub { color: var(--muted); font-size: 9px; letter-spacing: 0.15em; }
+
+  .search-bar {
+    display: flex; gap: 8px; padding: 14px 20px;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  .search-input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    color: var(--accent); font-family: var(--mono); font-size: 20px;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 10px 16px; border-radius: 4px; outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  .search-input::placeholder { color: var(--muted); font-size: 14px; letter-spacing: 0.1em; }
+  .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,212,255,0.12); }
+  .btn {
+    background: var(--accent); color: #000; font-family: var(--sans);
+    font-weight: 700; font-size: 13px; letter-spacing: 0.12em;
+    text-transform: uppercase; border: none; padding: 10px 20px;
+    border-radius: 4px; cursor: pointer; transition: background 0.15s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: scale(0.96); background: #00b8d9; }
+  .btn:disabled { background: var(--muted); cursor: not-allowed; }
+
+  .status-bar {
+    padding: 6px 20px; font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.1em; color: var(--muted); border-bottom: 1px solid var(--border);
+    min-height: 28px; display: flex; align-items: center; gap: 12px;
+  }
+  .status-bar .tag { color: var(--green); }
+  .status-bar .err { color: #ff4444; }
+
+  main { padding: 16px 20px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Section cards */
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; overflow: hidden;
+  }
+  .card-header {
+    padding: 8px 14px; background: var(--panel2);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.2em;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .card-header .dot { width: 5px; height: 5px; border-radius: 50%; }
+  .card-body { padding: 14px; }
+
+  /* Raw METAR */
+  .raw-metar {
+    font-family: var(--mono); font-size: 13px; line-height: 1.7;
+    color: var(--accent); word-break: break-all; letter-spacing: 0.05em;
+  }
+
+  /* Parsed grid */
+  .parsed-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .parsed-item {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; padding: 10px 12px;
+  }
+  .parsed-label {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 4px;
+  }
+  .parsed-value {
+    font-family: var(--mono); font-size: 16px; color: var(--text);
+    font-weight: 400;
+  }
+  .parsed-value.big { font-size: 22px; color: var(--accent); }
+  .parsed-value.warn { color: var(--warn); }
+  .parsed-value.good { color: var(--green); }
+
+  /* Runway diagram */
+  #runway-canvas-wrap {
+    display: flex; justify-content: center; align-items: center;
+    padding: 16px;
+    background: radial-gradient(ellipse at center, #0a1825 0%, var(--bg) 70%);
+    min-height: 300px;
+  }
+  canvas#rwCanvas {
+    max-width: 100%; touch-action: none;
+  }
+
+  /* Flight rules badge */
+  .fr-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 3px;
+    font-family: var(--mono); font-size: 13px; letter-spacing: 0.15em;
+    font-weight: bold;
+  }
+  .fr-VFR  { background: rgba(57,255,106,0.15); color: var(--green); border: 1px solid var(--green); }
+  .fr-MVFR { background: rgba(0,212,255,0.15);  color: var(--accent); border: 1px solid var(--accent); }
+  .fr-IFR  { background: rgba(255,107,53,0.15); color: var(--accent2); border: 1px solid var(--accent2); }
+  .fr-LIFR { background: rgba(255,68,68,0.15);  color: #ff4444; border: 1px solid #ff4444; }
+
+  /* Cloud layers */
+  .clouds-list { display: flex; flex-direction: column; gap: 6px; }
+  .cloud-row { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 13px; }
+  .cloud-cover { width: 44px; color: var(--warn); }
+  .cloud-alt { color: var(--text); }
+  .cloud-type { color: var(--muted); font-size: 11px; }
+
+  /* Wind arrow legend */
+  .wind-legend {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    letter-spacing: 0.1em; padding: 0 14px 12px;
+  }
+  .wl-arrow { width: 12px; height: 2px; background: var(--accent2); position: relative; }
+  .wl-arrow::after { content: '▶'; position: absolute; right: -8px; top: -6px; font-size: 10px; color: var(--accent2); }
+
+  /* Loading spinner */
+  .spinner {
+    width: 28px; height: 28px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.7s linear infinite; margin: 30px auto; display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty-state {
+    text-align: center; padding: 48px 20px;
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    letter-spacing: 0.15em; line-height: 2;
+  }
+  .empty-state .big-txt {
+    font-size: 36px; letter-spacing: 0.3em; color: var(--border);
+    display: block; margin-bottom: 12px;
+  }
+
+  .section-wrap { display: none; }
+  .section-wrap.visible { display: flex; flex-direction: column; gap: 16px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo"><div class="logo-dot"></div> ATIS VIEWER</div>
+    <div class="logo-sub">AVIATION WEATHER &amp; RUNWAY</div>
+  </div>
+  <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-align:right;letter-spacing:0.1em" id="clock"></div>
+</header>
+
+<div class="search-bar">
+  <input class="search-input" id="icaoInput" type="text" maxlength="4" placeholder="ICAO (e.g. KFRG)" autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters">
+  <button class="btn" id="searchBtn" onclick="fetchData()">FETCH</button>
+</div>
+
+<div class="status-bar" id="statusBar">
+  <span style="color:var(--muted)">AWAITING INPUT</span>
+</div>
+
+<main>
+  <div class="spinner" id="spinner"></div>
+
+  <div class="empty-state" id="emptyState">
+    <span class="big-txt">✈</span>
+    ENTER ICAO CODE ABOVE<br>TO RETRIEVE METAR &amp; RUNWAY DATA
+  </div>
+
+  <div class="section-wrap" id="sections">
+
+    <!-- Runway Diagram -->
+    <div class="card">
+      <div class="card-header">
+        <div class="dot" style="background:var(--accent)"></div>
+        RUNWAY DIAGRAM &amp; WIND
+      </div>
+      <div id="runway-canvas-wrap">
+        <canvas id="rwCanvas"></canvas>
+      </div>
+      <div class="wind-legend">
+        <div class="wl-arrow"></div>
+        WIND VECTOR — ORANGE ARROW SHOWS WIND DIRECTION (FROM)
+      </div>
+    </div>
+
+    <!-- Raw METAR -->
+    <div class="card">
+      <div class="card-header">
+        <div class="dot" style="background:var(--green)"></div>
+        RAW METAR
+      </div>
+      <div class="card-body">
+        <div class="raw-metar" id="rawMetar"></div>
+      </div>
+    </div>
+
+    <!-- Parsed METAR -->
+    <div class="card">
+      <div class="card-header">
+        <div class="dot" style="background:var(--warn)"></div>
+        PARSED METAR
+      </div>
+      <div class="card-body">
+        <div class="parsed-grid" id="parsedGrid"></div>
+      </div>
+    </div>
+
+    <!-- Cloud Layers -->
+    <div class="card" id="cloudCard">
+      <div class="card-header">
+        <div class="dot" style="background:var(--muted)"></div>
+        SKY CONDITION
+      </div>
+      <div class="card-body clouds-list" id="cloudList"></div>
+    </div>
+
+    <!-- Station Info -->
+    <div class="card">
+      <div class="card-header">
+        <div class="dot" style="background:var(--accent2)"></div>
+        STATION INFO
+      </div>
+      <div class="card-body">
+        <div class="parsed-grid" id="stationGrid"></div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script>
+const TOKEN = '62G41L7IH8f-X4IbQwmHvIM5wfHhYrkRMJFaDmilWHM';
+let metarData = null, stationData = null;
+
+// Clock
+function updateClock() {
+  const now = new Date();
+  const z = n => String(n).padStart(2,'0');
+  document.getElementById('clock').innerHTML =
+    `${now.getUTCFullYear()}-${z(now.getUTCMonth()+1)}-${z(now.getUTCDate())}<br>${z(now.getUTCHours())}:${z(now.getUTCMinutes())}:${z(now.getUTCSeconds())} UTC`;
+}
+setInterval(updateClock, 1000); updateClock();
+
+document.getElementById('icaoInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') fetchData();
+});
+
+function setStatus(msg, type='') {
+  const sb = document.getElementById('statusBar');
+  sb.innerHTML = `<span class="${type}">${msg}</span>`;
+}
+
+async function fetchData() {
+  const icao = document.getElementById('icaoInput').value.trim().toUpperCase();
+  if (icao.length < 3) { setStatus('ENTER VALID ICAO CODE', 'err'); return; }
+
+  document.getElementById('spinner').style.display = 'block';
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('sections').classList.remove('visible');
+  setStatus(`FETCHING ${icao}...`, 'tag');
+
+  try {
+    const [mRes, sRes] = await Promise.all([
+      fetch(`https://avwx.rest/api/metar/${icao}?token=${TOKEN}`),
+      fetch(`https://avwx.rest/api/station/${icao}?token=${TOKEN}`)
+    ]);
+
+    if (!mRes.ok) throw new Error(`METAR ${mRes.status}: ${mRes.statusText}`);
+    if (!sRes.ok) throw new Error(`STATION ${sRes.status}: ${sRes.statusText}`);
+
+    metarData = await mRes.json();
+    stationData = await sRes.json();
+
+    renderAll(icao);
+    setStatus(`✓ ${icao} — ${metarData.time?.repr || ''} UTC`, 'tag');
+  } catch(e) {
+    setStatus(`ERROR: ${e.message}`, 'err');
+    document.getElementById('emptyState').style.display = 'block';
+    document.getElementById('emptyState').innerHTML = `<span class="big-txt">!</span>FETCH ERROR<br>${e.message}`;
+  } finally {
+    document.getElementById('spinner').style.display = 'none';
+  }
+}
+
+function renderAll(icao) {
+  renderRawMetar();
+  renderParsedMetar();
+  renderClouds();
+  renderStation(icao);
+  requestAnimationFrame(renderRunwayDiagram);
+  document.getElementById('sections').classList.add('visible');
+}
+
+function renderRawMetar() {
+  const raw = metarData.raw || metarData.sanitized || '';
+  document.getElementById('rawMetar').textContent = raw;
+}
+
+function flightRules(vis, ceiling) {
+  if (ceiling < 500 || vis < 1) return 'LIFR';
+  if (ceiling < 1000 || vis < 3) return 'IFR';
+  if (ceiling < 3000 || vis <= 5) return 'MVFR';
+  return 'VFR';
+}
+
+function renderParsedMetar() {
+  const m = metarData;
+  const wind_dir = m.wind_direction?.value ?? m.wind_direction?.repr ?? '---';
+  const wind_spd = m.wind_speed?.value ?? '---';
+  const wind_gust = m.wind_gust?.value ? `G${m.wind_gust.value}` : '';
+  const units = m.units || {};
+  const wspd_unit = units.wind_speed || 'kt';
+  const vis = m.visibility?.value ?? '---';
+  const temp = m.temperature?.value ?? '---';
+  const dew  = m.dewpoint?.value ?? '---';
+  const alt = m.altimeter?.value ?? '---';
+  const altUnit = units.altimeter || 'inHg';
+  const time = m.time?.repr ?? '---';
+
+  // ceiling from clouds
+  let ceiling = 99999;
+  (m.clouds || []).forEach(c => {
+    if (['BKN','OVC','VV'].includes(c.type) && c.altitude != null) {
+      ceiling = Math.min(ceiling, c.altitude * 100);
+    }
+  });
+  const fr = flightRules(typeof vis === 'number' ? vis : 99, ceiling);
+
+  const windStr = wind_dir === 'VRB'
+    ? `VRB ${wind_spd}${wind_gust} ${wspd_unit}`
+    : `${String(wind_dir).padStart(3,'0')}° ${wind_spd}${wind_gust} ${wspd_unit}`;
+
+  const visClass = typeof vis === 'number' && vis < 3 ? 'warn' : 'good';
+
+  const items = [
+    { label: 'FLIGHT RULES', value: `<span class="fr-badge fr-${fr}">${fr}</span>` },
+    { label: 'OBSERVATION TIME', value: time, cls: '' },
+    { label: 'WIND', value: windStr, cls: 'big' },
+    { label: 'VISIBILITY', value: `${vis} ${units.visibility||'sm'}`, cls: visClass },
+    { label: 'TEMPERATURE', value: `${temp}°C`, cls: '' },
+    { label: 'DEWPOINT', value: `${dew}°C`, cls: '' },
+    { label: 'ALTIMETER', value: `${alt} ${altUnit}`, cls: 'big' },
+    { label: 'REL. HUMIDITY', value: calcRH(temp, dew), cls: '' },
+  ];
+
+  document.getElementById('parsedGrid').innerHTML = items.map(i =>
+    `<div class="parsed-item">
+      <div class="parsed-label">${i.label}</div>
+      <div class="parsed-value ${i.cls||''}">${i.value}</div>
+    </div>`
+  ).join('');
+}
+
+function calcRH(t, d) {
+  if (t === '---' || d === '---') return '---';
+  const rh = 100 * Math.exp((17.625 * d/(243.04+d)) - (17.625 * t/(243.04+t)));
+  return `${Math.round(rh)}%`;
+}
+
+function renderClouds() {
+  const clouds = metarData.clouds || [];
+  const card = document.getElementById('cloudCard');
+  const list = document.getElementById('cloudList');
+  if (!clouds.length) {
+    card.style.display = 'none'; return;
+  }
+  card.style.display = '';
+  list.innerHTML = clouds.map(c => {
+    const alt = c.altitude != null ? `${c.altitude*100} ft AGL` : 'SURFACE';
+    const type = c.modifier || '';
+    return `<div class="cloud-row">
+      <span class="cloud-cover">${c.type}</span>
+      <span class="cloud-alt">${alt}</span>
+      <span class="cloud-type">${type}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderStation(icao) {
+  const s = stationData;
+  const items = [
+    { label: 'STATION', value: `${s.icao || icao}` },
+    { label: 'NAME', value: s.name || '---' },
+    { label: 'ELEVATION', value: s.elevation_ft != null ? `${s.elevation_ft} ft` : '---' },
+    { label: 'COORDINATES', value: s.latitude != null ? `${s.latitude.toFixed(3)}, ${s.longitude.toFixed(3)}` : '---' },
+    { label: 'RUNWAYS', value: (s.runways || []).length || '---' },
+    { label: 'COUNTRY', value: s.country || '---' },
+  ];
+  document.getElementById('stationGrid').innerHTML = items.map(i =>
+    `<div class="parsed-item">
+      <div class="parsed-label">${i.label}</div>
+      <div class="parsed-value">${i.value}</div>
+    </div>`
+  ).join('');
+}
+
+function renderRunwayDiagram() {
+  const runways = stationData.runways || [];
+  const canvas = document.getElementById('rwCanvas');
+  const wrap = document.getElementById('runway-canvas-wrap');
+  const rawSize = wrap.clientWidth > 0 ? wrap.clientWidth - 32 : 300;
+  const size = Math.max(220, Math.min(rawSize, 340));
+  canvas.width = size;
+  canvas.height = size;
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, size, size);
+
+  const cx = size / 2, cy = size / 2, R = Math.max(80, size / 2 - 20);
+
+  // Background circle
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.strokeStyle = '#1e2d45';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(10,13,18,0.6)';
+  ctx.fill();
+
+  // Compass ticks
+  ctx.font = '9px "Share Tech Mono"';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ['N','E','S','W'].forEach((label, i) => {
+    const angle = i * Math.PI / 2 - Math.PI / 2;
+    ctx.fillStyle = label === 'N' ? '#ff6b35' : '#4a6080';
+    const tx = cx + (R - 12) * Math.cos(angle);
+    const ty = cy + (R - 12) * Math.sin(angle);
+    ctx.fillText(label, tx, ty);
+  });
+
+  // Degree rings
+  for (let d = 0; d < 360; d += 30) {
+    const a = (d - 90) * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(cx + (R-20)*Math.cos(a), cy + (R-20)*Math.sin(a));
+    ctx.lineTo(cx + (R-26)*Math.cos(a), cy + (R-26)*Math.sin(a));
+    ctx.strokeStyle = '#1e2d45';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Draw runways
+  const rwLen = R * 0.60, rwW = 10;
+
+  runways.forEach(rw => {
+    const hdg = rw.heading_deg ?? (parseFloat(rw.ident1) * 10);
+    if (!isFinite(hdg) || isNaN(hdg)) return;
+    const rad = (hdg - 90) * Math.PI / 180;
+
+    const x1 = cx + (rwLen/2) * Math.cos(rad);
+    const y1 = cy + (rwLen/2) * Math.sin(rad);
+    const x2 = cx - (rwLen/2) * Math.cos(rad);
+    const y2 = cy - (rwLen/2) * Math.sin(rad);
+
+    // Shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,212,255,0.2)';
+    ctx.shadowBlur = 8;
+
+    // Runway fill
+    ctx.beginPath();
+    const perpX = Math.sin(rad) * rwW/2;
+    const perpY = -Math.cos(rad) * rwW/2;
+    ctx.moveTo(x1+perpX, y1+perpY);
+    ctx.lineTo(x1-perpX, y1-perpY);
+    ctx.lineTo(x2-perpX, y2-perpY);
+    ctx.lineTo(x2+perpX, y2+perpY);
+    ctx.closePath();
+    ctx.fillStyle = '#1a2535';
+    ctx.fill();
+    ctx.strokeStyle = '#00d4ff';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.restore();
+
+    // Centerline dashes
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.strokeStyle = 'rgba(0,212,255,0.3)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Runway labels
+    ctx.font = 'bold 10px "Share Tech Mono"';
+    ctx.fillStyle = '#ffd60a';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const lblOff = rwLen/2 + 12;
+    ctx.fillText(rw.ident1 || '', cx + lblOff * Math.cos(rad), cy + lblOff * Math.sin(rad));
+    ctx.fillText(rw.ident2 || '', cx - lblOff * Math.cos(rad), cy - lblOff * Math.sin(rad));
+  });
+
+  // Wind arrow
+  const wd = metarData.wind_direction?.value;
+  const ws = metarData.wind_speed?.value || 0;
+  if (wd != null && wd !== 'VRB' && ws > 0) {
+    const windRad = (wd - 90) * Math.PI / 180; // from direction → arrow points INTO center
+    const arrowLen = R * 0.52;
+    const fromX = cx + arrowLen * Math.cos(windRad);
+    const fromY = cy + arrowLen * Math.sin(windRad);
+
+    ctx.save();
+    ctx.shadowColor = '#ff6b35';
+    ctx.shadowBlur = 14;
+
+    // Arrow shaft
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    ctx.lineTo(cx, cy);
+    ctx.strokeStyle = '#ff6b35';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Arrowhead at center (wind blowing toward)
+    const headLen = 12, headW = 6;
+    const angle = Math.atan2(cy - fromY, cx - fromX);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx - headLen * Math.cos(angle - 0.4), cy - headLen * Math.sin(angle - 0.4));
+    ctx.lineTo(cx - headLen * Math.cos(angle + 0.4), cy - headLen * Math.sin(angle + 0.4));
+    ctx.closePath();
+    ctx.fillStyle = '#ff6b35';
+    ctx.fill();
+
+    // Speed label
+    ctx.font = '9px "Share Tech Mono"';
+    ctx.fillStyle = '#ff6b35';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${ws}kt`, fromX, fromY - 10);
+
+    ctx.restore();
+  } else if (wd === 'VRB') {
+    // Variable wind - circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ff6b35';
+    ctx.setLineDash([3,3]);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = '9px "Share Tech Mono"';
+    ctx.fillStyle = '#ff6b35';
+    ctx.textAlign = 'center';
+    ctx.fillText('VRB', cx, cy);
+  }
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fillStyle = '#00d4ff';
+  ctx.fill();
+}
+
+window.addEventListener('resize', () => {
+  if (metarData && stationData) renderRunwayDiagram();
+});
+</script>
+</body>
+</html>

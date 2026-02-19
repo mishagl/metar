@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Airport WX</title>
+
+<!-- iOS PWA -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Airport WX">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0e1a0e">
+
+<!-- Inline SVG favicon (no external file needed) -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230e1a0e'/><text y='24' x='4' font-size='22'>✈</text></svg>">
+
+<!-- Apple touch icon: inline base64 green circle with plane -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='36' fill='%230e1a0e'/><circle cx='90' cy='90' r='70' fill='none' stroke='%236aaa40' stroke-width='4'/><text y='115' x='90' text-anchor='middle' font-size='72' fill='%23a8d878'>✈</text></svg>">
+
+<link href="https://fonts.googleapis.com/css2?family=B612+Mono:wght@400;700&family=B612:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --ink: #e8eed6;
+    --bg: #0e1a0e;
+    --bg2: #121f12;
+    --green-hi: #a8d878;
+    --green-mid: #6aaa40;
+    --green-dim: #3a6a2a;
+    --green-ghost: #1e3a1e;
+    --amber: #f0c040;
+    --amber-dim: #806820;
+    --red: #e05050;
+    --red-dim: #601818;
+    --blue: #60c8f0;
+    --panel-border: #2a4a2a;
+    --safe: bottom env(safe-area-inset-bottom, 0px);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { height: -webkit-fill-available; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'B612 Mono', monospace;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: env(safe-area-inset-top, 20px) 16px calc(env(safe-area-inset-bottom, 0px) + 30px);
+    padding-top: max(20px, env(safe-area-inset-top, 20px));
+    background-image: radial-gradient(ellipse at 50% 0%, #1a3020 0%, transparent 60%);
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: radial-gradient(circle, #2a4a2a 1px, transparent 1px);
+    background-size: 28px 28px;
+    opacity: 0.14;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Header ─────────────────────────────────────────── */
+  header {
+    width: 100%;
+    max-width: 720px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 16px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .logo {
+    font-family: 'B612', sans-serif;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--green-mid);
+    margin-bottom: 3px;
+  }
+
+  h1 {
+    font-family: 'B612', sans-serif;
+    font-size: clamp(1.4rem, 5vw, 1.9rem);
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: 0.08em;
+    line-height: 1;
+  }
+  h1 span { color: var(--green-hi); }
+
+  .header-right {
+    text-align: right;
+    font-size: 0.65rem;
+    color: var(--green-dim);
+    line-height: 1.8;
+  }
+
+  /* ── Search ──────────────────────────────────────────── */
+  .search-row {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    max-width: 720px;
+    margin-bottom: 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .search-row input {
+    background: var(--bg2);
+    border: 1px solid var(--panel-border);
+    color: var(--green-hi);
+    font-family: 'B612 Mono', monospace;
+    font-size: 1.05rem;
+    font-weight: 700;
+    padding: 12px 16px;
+    border-radius: 4px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    width: 140px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .search-row input:focus {
+    border-color: var(--green-hi);
+    box-shadow: 0 0 0 2px #a8d87822;
+  }
+
+  .search-row button {
+    flex: 1;
+    background: var(--green-mid);
+    color: #0a140a;
+    border: none;
+    font-family: 'B612 Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 12px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    transition: background 0.15s, opacity 0.15s;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+  }
+  .search-row button:active { opacity: 0.7; }
+  .search-row button:hover { background: var(--green-hi); }
+  .search-row button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* refresh mini-btn */
+  #refreshBtn {
+    background: var(--bg2);
+    border: 1px solid var(--panel-border);
+    color: var(--green-dim);
+    font-size: 1.1rem;
+    padding: 12px 14px;
+    flex: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    -webkit-appearance: none;
+    touch-action: manipulation;
+    display: none;
+  }
+  #refreshBtn.visible { display: block; }
+  #refreshBtn:active { color: var(--green-hi); border-color: var(--green-hi); }
+
+  /* ── Card ────────────────────────────────────────────── */
+  .card {
+    width: 100%;
+    max-width: 720px;
+    background: var(--bg2);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    overflow: hidden;
+    animation: fadeIn 0.35s ease;
+    position: relative;
+    z-index: 1;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  .card-header {
+    border-bottom: 1px solid var(--panel-border);
+    padding: 14px 18px;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .station-id {
+    font-family: 'B612', sans-serif;
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--green-hi);
+    letter-spacing: 0.12em;
+    line-height: 1;
+  }
+
+  .station-details {
+    flex: 1;
+    font-size: 0.7rem;
+    line-height: 1.9;
+    color: var(--green-dim);
+  }
+  .station-details strong { color: var(--ink); }
+
+  /* obs time badge */
+  .obs-badge {
+    font-size: 0.62rem;
+    color: var(--green-dim);
+    letter-spacing: 0.1em;
+    margin-top: 2px;
+  }
+  .obs-badge span {
+    display: inline-block;
+    background: var(--green-ghost);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    padding: 1px 6px;
+    color: var(--green-hi);
+    margin-left: 4px;
+  }
+
+  /* ── METAR strip ─────────────────────────────────────── */
+  .metar-strip {
+    border-bottom: 1px solid var(--panel-border);
+    padding: 10px 18px;
+    background: #0c160c;
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .metar-raw-label {
+    font-size: 0.58rem;
+    color: var(--green-dim);
+    letter-spacing: 0.2em;
+    padding-top: 1px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .metar-raw-text {
+    font-size: 0.72rem;
+    color: var(--green-hi);
+    letter-spacing: 0.05em;
+    line-height: 1.5;
+    word-break: break-all;
+    opacity: 0.85;
+  }
+
+  /* ── WX tiles ────────────────────────────────────────── */
+  .wx-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 1px;
+    border-bottom: 1px solid var(--panel-border);
+    background: var(--panel-border);
+  }
+
+  .wx-tile {
+    background: var(--bg2);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .wx-tile .t-label {
+    font-size: 0.57rem;
+    color: var(--green-dim);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  .wx-tile .t-val {
+    font-family: 'B612', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--amber);
+    line-height: 1.1;
+  }
+  .wx-tile .t-val.ok   { color: var(--green-hi); }
+  .wx-tile .t-val.warn { color: var(--amber); }
+  .wx-tile .t-val.bad  { color: var(--red); }
+  .wx-tile .t-sub {
+    font-size: 0.65rem;
+    color: var(--green-dim);
+    margin-top: 1px;
+  }
+  .wx-tile .t-unit {
+    font-size: 0.62rem;
+    color: var(--green-dim);
+    margin-left: 2px;
+    font-family: 'B612 Mono', monospace;
+    font-weight: 400;
+  }
+
+  /* wind tile — wider, prominent */
+  .wx-tile.wind-main {
+    grid-column: span 2;
+    background: #0f1e0f;
+    border-right: 1px solid var(--panel-border);
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 18px;
+  }
+  .wind-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .wind-badge .dir-num {
+    font-family: 'B612', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--amber);
+    line-height: 1;
+  }
+  .wind-badge .dir-label {
+    font-size: 0.65rem;
+    color: var(--amber-dim);
+    letter-spacing: 0.15em;
+  }
+  .wind-details { flex: 1; }
+  .wind-details .spd {
+    font-family: 'B612', sans-serif;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .wind-details .gust {
+    font-size: 0.78rem;
+    color: var(--red);
+    margin-top: 2px;
+    letter-spacing: 0.08em;
+  }
+  .wind-details .unit-row {
+    font-size: 0.6rem;
+    color: var(--green-dim);
+    margin-top: 2px;
+  }
+
+  /* ── Diagram area ────────────────────────────────────── */
+  .diagram-area {
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    background: #0c160c;
+  }
+
+  /* ── Crosswind table ─────────────────────────────────── */
+  .xwind-wrap {
+    padding: 0 18px 18px;
+  }
+
+  .section-label {
+    font-size: 0.58rem;
+    letter-spacing: 0.3em;
+    color: var(--green-dim);
+    text-transform: uppercase;
+    border-top: 1px solid var(--panel-border);
+    padding-top: 14px;
+    margin-bottom: 10px;
+  }
+
+  .xwind-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.72rem;
+  }
+  .xwind-table thead th {
+    text-align: left;
+    font-weight: 400;
+    color: var(--green-dim);
+    letter-spacing: 0.12em;
+    font-size: 0.58rem;
+    padding: 0 8px 8px 8px;
+    border-bottom: 1px solid var(--green-ghost);
+  }
+  .xwind-table tbody tr { transition: background 0.1s; }
+  .xwind-table tbody tr:hover { background: #1a2e1a; }
+  .xwind-table tbody td {
+    padding: 9px 8px;
+    border-bottom: 1px solid var(--green-ghost);
+    vertical-align: middle;
+  }
+  .xwind-table tbody tr:last-child td { border-bottom: none; }
+
+  .rwy-id-cell {
+    font-family: 'B612', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--amber);
+    letter-spacing: 0.05em;
+  }
+
+  .bar-wrap { display: flex; align-items: center; gap: 6px; }
+  .bar-track {
+    flex: 1;
+    height: 6px;
+    background: var(--green-ghost);
+    border-radius: 3px;
+    overflow: hidden;
+    min-width: 40px;
+  }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 0.6rem;
+    font-family: 'B612', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+  }
+  .chip.fav  { background: #0a2a12; color: var(--green-hi); border: 1px solid var(--green-dim); }
+  .chip.marg { background: #2a2200; color: var(--amber);    border: 1px solid var(--amber-dim); }
+  .chip.adv  { background: #2a0a0a; color: var(--red);      border: 1px solid var(--red-dim); }
+
+  .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Rwy detail table ────────────────────────────────── */
+  .rwy-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.7rem;
+    margin-top: 0;
+  }
+  .rwy-table thead th {
+    text-align: left;
+    font-weight: 400;
+    color: var(--green-dim);
+    letter-spacing: 0.12em;
+    font-size: 0.58rem;
+    padding: 0 8px 8px 8px;
+    border-bottom: 1px solid var(--green-ghost);
+  }
+  .rwy-table tbody td {
+    padding: 8px 8px;
+    border-bottom: 1px solid var(--green-ghost);
+    vertical-align: middle;
+  }
+  .rwy-table tbody tr:last-child td { border-bottom: none; }
+  .rwy-table tbody tr:hover { background: #1a2e1a; }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .pill-asphalt  { background: #1a2a1a; color: var(--green-mid); border: 1px solid var(--green-dim); }
+  .pill-concrete { background: #1a1e28; color: #80a0d0;          border: 1px solid #304060; }
+  .pill-grass    { background: #1a2a10; color: #80c040;          border: 1px solid #406020; }
+  .pill-lit      { background: #2a2800; color: var(--amber);     border: 1px solid var(--amber-dim); }
+
+  /* ── Msg states ──────────────────────────────────────── */
+  .msg {
+    padding: 50px 20px;
+    text-align: center;
+    color: var(--green-dim);
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+  }
+  .msg.error { color: var(--red); }
+  .msg.loading::after { content: ' ▌'; animation: cur 0.7s step-end infinite; }
+  @keyframes cur { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* ── Scroll hint on mobile ───────────────────────────── */
+  @media (max-width: 480px) {
+    .xwind-wrap { overflow-x: auto; }
+  }
+
+  /* ── Spinning refresh anim ───────────────────────────── */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinning { display: inline-block; animation: spin 0.7s linear infinite; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">AVWX · Airport WX</div>
+    <h1>RUNWAY <span>&amp; WIND</span></h1>
+  </div>
+  <div class="header-right" id="lastUpdate">
+    TRUE NORTH UP<br>
+    BEARING ACCURATE
+  </div>
+</header>
+
+<div class="search-row">
+  <input type="text" id="icaoInput" value="KFRG" maxlength="6"
+         placeholder="ICAO" autocomplete="off" autocorrect="off"
+         autocapitalize="characters" spellcheck="false"/>
+  <button id="loadBtn" onclick="loadAll()">LOAD</button>
+  <button id="refreshBtn" onclick="loadAll(true)" title="Refresh">↻</button>
+</div>
+
+<div id="outputArea">
+  <div class="card"><div class="msg loading">INITIALIZING</div></div>
+</div>
+
+<script>
+'use strict';
+
+const TOKEN = '62G41L7IH8f-X4IbQwmHvIM5wfHhYrkRMJFaDmilWHM';
+let currentICAO = null;
+let refreshTimer = null;
+
+/* ═══════════════════════════════════════════════════════════
+   DATA FETCHING
+═══════════════════════════════════════════════════════════ */
+async function loadAll(isRefresh = false) {
+  const icao = document.getElementById('icaoInput').value.trim().toUpperCase();
+  if (!icao) return;
+  currentICAO = icao;
+
+  const btn = document.getElementById('loadBtn');
+  const refBtn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  refBtn.classList.remove('visible');
+
+  if (!isRefresh) {
+    document.getElementById('outputArea').innerHTML =
+      `<div class="card"><div class="msg loading">FETCHING ${icao}</div></div>`;
+  }
+
+  try {
+    const [stRes, mxRes] = await Promise.all([
+      fetch(`https://avwx.rest/api/station/${icao}?token=${TOKEN}`),
+      fetch(`https://avwx.rest/api/metar/${icao}?token=${TOKEN}`)
+    ]);
+
+    if (!stRes.ok) {
+      const e = await stRes.json().catch(()=>({}));
+      throw new Error(e.error_message || `Station HTTP ${stRes.status}`);
+    }
+    if (!mxRes.ok) {
+      const e = await mxRes.json().catch(()=>({}));
+      throw new Error(e.error_message || `METAR HTTP ${mxRes.status}`);
+    }
+
+    const station = await stRes.json();
+    const metar   = await mxRes.json();
+
+    renderAll(station, metar, icao);
+
+    // schedule next auto-refresh in 5 min
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => loadAll(true), 5 * 60 * 1000);
+
+    document.getElementById('lastUpdate').textContent =
+      'UPDATED ' + new Date().toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit',hour12:false}) + 'L';
+
+  } catch (e) {
+    document.getElementById('outputArea').innerHTML =
+      `<div class="card"><div class="msg error">⚠ ${e.message}</div></div>`;
+  } finally {
+    btn.disabled = false;
+    refBtn.classList.add('visible');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   WIND HELPERS
+═══════════════════════════════════════════════════════════ */
+function bearingLabel(b) {
+  if (b == null) return '';
+  const d = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return d[Math.round(b / 22.5) % 16];
+}
+
+function windComponents(windDir, windSpd, runwayHdg) {
+  const rel = (windDir - runwayHdg) * Math.PI / 180;
+  return {
+    headwind:  windSpd * Math.cos(rel),
+    crosswind: windSpd * Math.sin(rel)
+  };
+}
+
+function windColorClass(spd) {
+  if (spd == null) return '';
+  if (spd <= 10) return 'ok';
+  if (spd <= 20) return 'warn';
+  return 'bad';
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RENDER ALL
+═══════════════════════════════════════════════════════════ */
+function renderAll(station, metar, icao) {
+  const runways  = station.runways || [];
+  const windDir  = metar.wind_direction?.value ?? null; // null = calm/VRB
+  const windSpd  = metar.wind_speed?.value ?? 0;
+  const windGust = metar.wind_gust?.value ?? null;
+  const windUnit = metar.units?.wind_speed?.toUpperCase() || 'KT';
+  const isVrb    = metar.wind_direction?.repr === 'VRB';
+  const isCalm   = windSpd === 0;
+
+  const area = document.getElementById('outputArea');
+  area.innerHTML = '';
+
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  /* — Station header — */
+  const hdr = document.createElement('div');
+  hdr.className = 'card-header';
+  const obsTime = metar.time?.repr
+    ? metar.time.repr + 'Z'
+    : (metar.time?.dt ? new Date(metar.time.dt).toUTCString().slice(0,-4) : '');
+  hdr.innerHTML = `
+    <div class="station-id">${icao}</div>
+    <div class="station-details">
+      <strong>${station.name || '—'}</strong><br>
+      ${[station.city, station.state, station.country].filter(Boolean).join(', ')}
+      &nbsp;·&nbsp; ELEV <strong>${station.elevation_ft != null ? station.elevation_ft + 'ft' : '—'}</strong>
+      ${station.iata ? `&nbsp;·&nbsp; <strong>${station.iata}</strong>` : ''}
+      <div class="obs-badge">OBS <span>${obsTime || '—'}</span></div>
+    </div>`;
+  card.appendChild(hdr);
+
+  /* — Raw METAR — */
+  if (metar.raw) {
+    const strip = document.createElement('div');
+    strip.className = 'metar-strip';
+    strip.innerHTML = `<span class="metar-raw-label">RAW</span>
+      <span class="metar-raw-text">${metar.raw}</span>`;
+    card.appendChild(strip);
+  }
+
+  /* — WX tiles — */
+  const tiles = document.createElement('div');
+  tiles.className = 'wx-tiles';
+
+  const vis   = metar.visibility?.value;
+  const visU  = metar.units?.visibility || 'sm';
+  const temp  = metar.temperature?.value;
+  const dew   = metar.dewpoint?.value;
+  const altim = metar.altimeter?.value;
+  const altU  = metar.units?.altimeter || 'inHg';
+  const wx    = metar.wx_codes?.map(w=>w.value).join(' ') || '—';
+  const clouds= metar.clouds?.map(c=>`${c.type}${c.altitude?'@'+c.altitude+'00ft':''}`).join(' ') || 'CLR';
+
+  const visClass = vis == null ? '' : vis >= 5 ? 'ok' : vis >= 3 ? 'warn' : 'bad';
+  const ceilAlt  = metar.clouds?.find(c=>['BKN','OVC','VV'].includes(c.type))?.altitude;
+  const ceilClass= !ceilAlt ? 'ok' : ceilAlt >= 30 ? 'ok' : ceilAlt >= 10 ? 'warn' : 'bad';
+
+  // Wind tile (double wide)
+  const windTile = document.createElement('div');
+  windTile.className = 'wx-tile wind-main';
+  if (isCalm) {
+    windTile.innerHTML = `
+      <div class="wind-badge">
+        <div class="dir-num" style="color:var(--green-hi)">CALM</div>
+      </div>
+      <div class="wind-details">
+        <div class="spd" style="color:var(--green-hi)">0 <span style="font-size:0.75rem;color:var(--green-dim)">${windUnit}</span></div>
+        <div class="unit-row">NO SIGNIFICANT WIND</div>
+      </div>`;
+  } else if (isVrb) {
+    windTile.innerHTML = `
+      <div class="wind-badge">
+        <div class="dir-num" style="font-size:1.1rem;color:var(--amber)">VRB</div>
+        <div class="dir-label">VARIABLE</div>
+      </div>
+      <div class="wind-details">
+        <div class="spd">${windSpd} <span style="font-size:0.75rem;color:var(--green-dim)">${windUnit}</span></div>
+        ${windGust ? `<div class="gust">▲ GUSTING ${windGust} ${windUnit}</div>` : ''}
+        <div class="unit-row">VARIABLE WIND DIRECTION</div>
+      </div>`;
+  } else {
+    const wClass = windColorClass(windSpd);
+    windTile.innerHTML = `
+      <div class="wind-badge">
+        <div class="dir-num">${String(windDir).padStart(3,'0')}°</div>
+        <div class="dir-label">${bearingLabel(windDir)}</div>
+      </div>
+      <div class="wind-details">
+        <div class="spd ${wClass}">${windSpd} <span style="font-size:0.75rem;color:var(--green-dim)">${windUnit}</span></div>
+        ${windGust ? `<div class="gust">▲ GUSTING ${windGust} ${windUnit}</div>` : ''}
+        <div class="unit-row">FROM ${bearingLabel(windDir)} · ${String(windDir).padStart(3,'0')} TRUE</div>
+      </div>`;
+  }
+  tiles.appendChild(windTile);
+
+  // Other tiles
+  const tileData = [
+    { label:'Visibility', val: vis!=null ? vis : '—', unit: visU, cls: visClass, sub: '' },
+    { label:'Ceiling',    val: clouds,                unit: '',   cls: ceilClass, sub: '' },
+    { label:'Temp',       val: temp!=null ? temp+'°C':'—', unit:'', cls:'', sub: dew!=null?`Dew ${dew}°C`:''},
+    { label:'Altimeter',  val: altim!=null ? altim :'—', unit: altU, cls:'', sub:'' },
+    { label:'Wx',         val: wx,                    unit: '',   cls: wx!=='—'?'warn':'ok', sub:'' },
+  ];
+  tileData.forEach(t => {
+    const d = document.createElement('div');
+    d.className = 'wx-tile';
+    d.innerHTML = `<div class="t-label">${t.label}</div>
+      <div class="t-val ${t.cls}">${t.val}${t.unit?`<span class="t-unit">${t.unit}</span>`:''}</div>
+      ${t.sub?`<div class="t-sub">${t.sub}</div>`:''}`;
+    tiles.appendChild(d);
+  });
+
+  card.appendChild(tiles);
+
+  /* — Diagram — */
+  const diagArea = document.createElement('div');
+  diagArea.className = 'diagram-area';
+  if (runways.length) {
+    diagArea.innerHTML = buildDiagram(runways, windDir, windSpd, windGust, windUnit, isVrb, isCalm);
+  } else {
+    diagArea.innerHTML = '<div class="msg" style="padding:30px">No runway data</div>';
+  }
+  card.appendChild(diagArea);
+
+  /* — Crosswind table — */
+  if (runways.length && !isVrb && !isCalm && windDir !== null) {
+    const xWrap = document.createElement('div');
+    xWrap.className = 'xwind-wrap';
+    xWrap.innerHTML = `<div class="section-label">Crosswind Analysis · ${windDir.toString().padStart(3,'0')}° @ ${windSpd} ${windUnit}${windGust?' G'+windGust:''}</div>`;
+
+    const tbl = document.createElement('table');
+    tbl.className = 'xwind-table';
+    tbl.innerHTML = `<thead><tr>
+      <th>RWY</th><th>HDG</th>
+      <th>HEADWIND</th><th>CROSSWIND</th>
+      <th>STATUS</th>
+    </tr></thead><tbody></tbody>`;
+    const tbody = tbl.querySelector('tbody');
+
+    const maxXwind = Math.min(windSpd, 40);
+
+    runways.forEach(rwy => {
+      [[rwy.bearing1, rwy.ident1], [rwy.bearing2, rwy.ident2]].forEach(([hdg, id]) => {
+        if (!id) return;
+        const {headwind, crosswind} = windComponents(windDir, windSpd, hdg);
+        const xwAbs = Math.abs(crosswind);
+        const hwAbs = Math.abs(headwind);
+
+        let status, chipClass, dotColor;
+        if (xwAbs <= 10 && headwind >= 0) { status='FAVORABLE'; chipClass='fav';  dotColor='var(--green-hi)'; }
+        else if (xwAbs <= 15)             { status='MARGINAL';  chipClass='marg'; dotColor='var(--amber)'; }
+        else                              { status='ADVERSE';   chipClass='adv';  dotColor='var(--red)'; }
+
+        const hwLabel = headwind >= 0 ? `↑ ${hwAbs.toFixed(1)}` : `↓ ${hwAbs.toFixed(1)}`;
+        const hwColor = headwind >= 0 ? 'var(--green-hi)' : 'var(--red)';
+        const xwColor = xwAbs<=10?'var(--green-hi)':xwAbs<=15?'var(--amber)':'var(--red)';
+        const xwDir   = crosswind >= 0 ? '→' : '←';
+        const barPct  = Math.min(100, (xwAbs / maxXwind) * 100);
+        const barColor= xwAbs<=10?'var(--green-mid)':xwAbs<=15?'var(--amber)':'var(--red)';
+
+        // Gust crosswind
+        let gustXwHtml = '';
+        if (windGust) {
+          const {crosswind: gXw} = windComponents(windDir, windGust, hdg);
+          gustXwHtml = `<div style="font-size:0.6rem;color:var(--red);margin-top:2px">G ${Math.abs(gXw).toFixed(1)}</div>`;
+        }
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="rwy-id-cell">${id}</td>
+          <td style="color:var(--green-dim)">${String(Math.round(hdg)).padStart(3,'0')}°</td>
+          <td style="color:${hwColor};font-variant-numeric:tabular-nums">${hwLabel} <span style="font-size:0.6rem;color:var(--green-dim)">${windUnit}</span></td>
+          <td>
+            <div class="bar-wrap">
+              <span style="color:${xwColor};font-variant-numeric:tabular-nums;min-width:36px">${xwAbs.toFixed(1)}</span>
+              <div class="bar-track"><div class="bar-fill" style="width:${barPct.toFixed(1)}%;background:${barColor}"></div></div>
+              <span style="color:${xwColor}">${xwDir}</span>
+            </div>
+            ${gustXwHtml}
+          </td>
+          <td><span class="chip ${chipClass}"><span class="dot" style="background:${dotColor}"></span>${status}</span></td>`;
+        tbody.appendChild(tr);
+      });
+    });
+
+    xWrap.appendChild(tbl);
+    card.appendChild(xWrap);
+  }
+
+  /* — Runway details table — */
+  if (runways.length) {
+    const rWrap = document.createElement('div');
+    rWrap.className = 'xwind-wrap';
+    rWrap.innerHTML = `<div class="section-label">Runway Details</div>`;
+    const tbl = document.createElement('table');
+    tbl.className = 'rwy-table';
+    tbl.innerHTML = `<thead><tr>
+      <th>RUNWAY</th><th>BRG1</th><th>BRG2</th>
+      <th>LENGTH</th><th>WIDTH</th><th>SURFACE</th><th>LIGHTS</th>
+    </tr></thead><tbody>${runways.map(r=>`<tr>
+      <td style="font-family:B612,sans-serif;font-weight:700;font-size:0.95rem;color:var(--amber)">${r.ident1||'?'}/${r.ident2||'?'}</td>
+      <td>${bearingLabel(r.bearing1)} ${r.bearing1!=null?Math.round(r.bearing1)+'°':'—'}</td>
+      <td>${bearingLabel(r.bearing2)} ${r.bearing2!=null?Math.round(r.bearing2)+'°':'—'}</td>
+      <td>${r.length_ft!=null?r.length_ft.toLocaleString()+' ft':'—'}</td>
+      <td>${r.width_ft!=null?r.width_ft+' ft':'—'}</td>
+      <td><span class="pill pill-${(r.surface||'').toLowerCase()}">${r.surface||'—'}</span></td>
+      <td>${r.lights?'<span class="pill pill-lit">LIT</span>':'<span style="color:var(--green-dim)">—</span>'}</td>
+    </tr>`).join('')}</tbody>`;
+    rWrap.appendChild(tbl);
+    card.appendChild(rWrap);
+  }
+
+  area.appendChild(card);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SVG DIAGRAM
+═══════════════════════════════════════════════════════════ */
+function buildDiagram(runways, windDir, windSpd, windGust, windUnit, isVrb, isCalm) {
+  const W = 640, H = 640;
+  const cx = W/2, cy = H/2;
+
+  const maxLen = Math.max(...runways.map(r => r.length_ft || 1));
+  const SCALE  = 200 / maxLen;
+  const MIN_HALF = 55, MAX_HALF = 215;
+  const maxWidth = Math.max(...runways.map(r => r.width_ft || 1));
+  const WIDTH_SCALE = 22 / maxWidth;
+  const MIN_HALF_W = 6, MAX_HALF_W = 26;
+
+  const getHalfLen = ft => Math.max(MIN_HALF, Math.min(MAX_HALF, (ft||maxLen)*SCALE));
+  const getHalfW   = ft => Math.max(MIN_HALF_W, Math.min(MAX_HALF_W, (ft||maxWidth)*WIDTH_SCALE));
+
+  const RWY_COLORS = [
+    { fill:'#1a3010', stroke:'#4a8a30', threshold:'#a8d878', ident:'#f0c040', center:'#2a5020' },
+    { fill:'#10202a', stroke:'#307080', threshold:'#60c8f0', ident:'#60c8f0', center:'#1a3a48' },
+    { fill:'#2a1a10', stroke:'#80502a', threshold:'#d09050', ident:'#d09050', center:'#4a2a18' },
+    { fill:'#1a1030', stroke:'#504878', threshold:'#9888d8', ident:'#9888d8', center:'#2a1e48' },
+  ];
+
+  // ── defs ────────────────────────────────────────────────
+  let defs = `<defs>
+    <radialGradient id="bgR" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#182818"/>
+      <stop offset="100%" stop-color="#090f09"/>
+    </radialGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softglow">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="windglow">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>`;
+
+  // Per-runway gradients
+  runways.forEach((_,i) => {
+    const c = RWY_COLORS[i%RWY_COLORS.length];
+    defs += `<linearGradient id="rg${i}" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="${c.stroke}" stop-opacity="0.18"/>
+      <stop offset="50%" stop-color="${c.fill}"/>
+      <stop offset="100%" stop-color="${c.stroke}" stop-opacity="0.18"/>
+    </linearGradient>`;
+  });
+  defs += '</defs>';
+
+  let lay = { bg:'', compass:'', runways:'', markings:'', labels:'', wind:'', ui:'' };
+
+  // ── bg ──────────────────────────────────────────────────
+  lay.bg = `<rect width="${W}" height="${H}" fill="url(#bgR)"/>`;
+
+  // ── compass ─────────────────────────────────────────────
+  const CR = 268;
+  lay.compass += `<circle cx="${cx}" cy="${cy}" r="${CR}" fill="none" stroke="#1e3a1e" stroke-width="1"/>`;
+  lay.compass += `<circle cx="${cx}" cy="${cy}" r="${CR-18}" fill="none" stroke="#152515" stroke-width="0.5"/>`;
+
+  // ticks
+  for (let d=0; d<360; d+=5) {
+    const rad = (d-90)*Math.PI/180;
+    const isMaj = d%30===0, isMed = d%10===0;
+    const ri = CR, ro = isMaj ? CR-16 : isMed ? CR-10 : CR-6;
+    lay.compass += `<line x1="${(cx+Math.cos(rad)*ri).toFixed(2)}" y1="${(cy+Math.sin(rad)*ri).toFixed(2)}"
+      x2="${(cx+Math.cos(rad)*ro).toFixed(2)}" y2="${(cy+Math.sin(rad)*ro).toFixed(2)}"
+      stroke="${isMaj?'#3a6a3a':isMed?'#244024':'#1c301c'}" stroke-width="${isMaj?1.5:0.75}"/>`;
+  }
+
+  // cardinals
+  [['N',0,16,700,'#a8d878'],['E',90,12,400,'#4a7a4a'],['S',180,12,400,'#4a7a4a'],['W',270,12,400,'#4a7a4a'],
+   ['030',30,7,400,'#2a4a2a'],['060',60,7,400,'#2a4a2a'],['120',120,7,400,'#2a4a2a'],['150',150,7,400,'#2a4a2a'],
+   ['210',210,7,400,'#2a4a2a'],['240',240,7,400,'#2a4a2a'],['300',300,7,400,'#2a4a2a'],['330',330,7,400,'#2a4a2a']
+  ].forEach(([lbl,deg,sz,wt,col]) => {
+    const rad=(deg-90)*Math.PI/180;
+    const r = sz>8 ? CR+20 : CR-26;
+    const x = cx+Math.cos(rad)*r, y = cy+Math.sin(rad)*r;
+    lay.compass += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle"
+      fill="${col}" font-family="B612 Mono,monospace" font-size="${sz}" font-weight="${wt}">${lbl}</text>`;
+  });
+
+  // north triangle
+  { const nr=-Math.PI/2;
+    const tx=cx+Math.cos(nr)*(CR-32), ty=cy+Math.sin(nr)*(CR-32);
+    const br=CR-50;
+    lay.compass += `<polygon points="${tx.toFixed(1)},${ty.toFixed(1)} ${(cx+Math.cos(nr+0.14)*br).toFixed(1)},${(cy+Math.sin(nr+0.14)*br).toFixed(1)} ${(cx+Math.cos(nr-0.14)*br).toFixed(1)},${(cy+Math.sin(nr-0.14)*br).toFixed(1)}" fill="#a8d878" opacity="0.6"/>`;
+  }
+
+  lay.compass += `<circle cx="${cx}" cy="${cy}" r="182" fill="#0c160c" opacity="0.82"/>`;
+  lay.compass += `<ellipse cx="${cx}" cy="${cy}" rx="177" ry="177" fill="none" stroke="#1a301a" stroke-width="1" stroke-dasharray="8,6"/>`;
+  lay.compass += `<circle cx="${cx}" cy="${cy}" r="4" fill="#2a5a2a" stroke="#4a8a4a" stroke-width="1.5"/>`;
+  lay.compass += `<circle cx="${cx}" cy="${cy}" r="1.5" fill="#a8d878"/>`;
+
+  // ── runways ─────────────────────────────────────────────
+  function normRot(deg) {
+    let r = deg % 360;
+    if (r > 90 && r <= 270) r = (r+180)%360;
+    return r;
+  }
+
+  runways.forEach((rwy, ri) => {
+    const c = RWY_COLORS[ri%RWY_COLORS.length];
+    const b1 = rwy.bearing1 ?? 0;
+    const halfLen = getHalfLen(rwy.length_ft);
+    const halfW   = getHalfW(rwy.width_ft);
+    const bRad = (b1-90)*Math.PI/180;
+    const cosB=Math.cos(bRad), sinB=Math.sin(bRad);
+    const e1x=cx+cosB*halfLen, e1y=cy+sinB*halfLen;
+    const e2x=cx-cosB*halfLen, e2y=cy-sinB*halfLen;
+    const pR=bRad+Math.PI/2;
+    const pdx=Math.cos(pR)*halfW, pdy=Math.sin(pR)*halfW;
+    const pts=[[e1x+pdx,e1y+pdy],[e1x-pdx,e1y-pdy],[e2x-pdx,e2y-pdy],[e2x+pdx,e2y+pdy]]
+      .map(p=>p.map(v=>v.toFixed(2)).join(',')).join(' ');
+
+    lay.runways += `<polygon points="${pts}" fill="${c.stroke}" opacity="0.07" filter="url(#softglow)"/>`;
+    lay.runways += `<polygon points="${pts}" fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.2"/>`;
+
+    // center dashes
+    for (let d=0;d<10;d++) {
+      const t1=(d+0.15)/10, t2=(d+0.6)/10;
+      lay.markings += `<line x1="${(e1x+(e2x-e1x)*t1).toFixed(2)}" y1="${(e1y+(e2y-e1y)*t1).toFixed(2)}"
+        x2="${(e1x+(e2x-e1x)*t2).toFixed(2)}" y2="${(e1y+(e2y-e1y)*t2).toFixed(2)}"
+        stroke="${c.center}" stroke-width="1" opacity="0.9"/>`;
+    }
+
+    // thresholds
+    [[e1x,e1y,-1],[e2x,e2y,+1]].forEach(([ex,ey,sign]) => {
+      const tcx=ex+cosB*sign*8, tcy=ey+sinB*sign*8;
+      lay.markings += `<line x1="${(tcx+pdx*0.85).toFixed(2)}" y1="${(tcy+pdy*0.85).toFixed(2)}"
+        x2="${(tcx-pdx*0.85).toFixed(2)}" y2="${(tcy-pdy*0.85).toFixed(2)}"
+        stroke="${c.threshold}" stroke-width="2" opacity="0.9"/>`;
+    });
+
+    // edge lights
+    if (rwy.lights) {
+      for (let l=0;l<=14;l++) {
+        const t=l/14;
+        const lx=e1x+(e2x-e1x)*t, ly=e1y+(e2y-e1y)*t;
+        lay.markings += `<circle cx="${(lx+pdx).toFixed(2)}" cy="${(ly+pdy).toFixed(2)}" r="1.1" fill="${c.threshold}" opacity="0.55"/>`;
+        lay.markings += `<circle cx="${(lx-pdx).toFixed(2)}" cy="${(ly-pdy).toFixed(2)}" r="1.1" fill="${c.threshold}" opacity="0.55"/>`;
+      }
+    }
+
+    // labels
+    const LO = halfLen+22;
+    [[1,rwy.ident1,rwy.bearing1??0],[−1,rwy.ident2,rwy.bearing2??180]].forEach(([sign,id,brg]) => {
+      if (!id) return;
+      const lx=cx+cosB*LO*sign, ly=cy+sinB*LO*sign;
+      const rot = normRot(brg);
+      lay.labels += `<rect x="${(lx-14).toFixed(2)}" y="${(ly-10).toFixed(2)}" width="28" height="20" rx="2"
+        fill="${c.fill}" fill-opacity="0.9" stroke="${c.stroke}" stroke-width="1"
+        transform="rotate(${rot.toFixed(1)},${lx.toFixed(2)},${ly.toFixed(2)})"/>`;
+      lay.labels += `<text x="${lx.toFixed(2)}" y="${ly.toFixed(2)}" text-anchor="middle" dominant-baseline="middle"
+        fill="${c.ident}" font-family="B612 Mono,monospace" font-size="11" font-weight="700"
+        transform="rotate(${rot.toFixed(1)},${lx.toFixed(2)},${ly.toFixed(2)})" filter="url(#glow)">${id}</text>`;
+      // bearing annotation
+      const BAO=LO+17;
+      const bx=cx+cosB*BAO*sign, by=cy+sinB*BAO*sign;
+      lay.labels += `<text x="${bx.toFixed(1)}" y="${by.toFixed(1)}" text-anchor="middle" dominant-baseline="middle"
+        fill="${c.stroke}" font-family="B612 Mono,monospace" font-size="8"
+        transform="rotate(${rot.toFixed(1)},${bx.toFixed(1)},${by.toFixed(1)})">${String(Math.round(brg)).padStart(3,'0')}°</text>`;
+    });
+  });
+
+  // ── WIND OVERLAY ────────────────────────────────────────
+  if (!isCalm && !isVrb && windDir !== null && windSpd > 0) {
+    const wRad = (windDir - 90) * Math.PI / 180; // SVG angle
+    const cosW = Math.cos(wRad), sinW = Math.sin(wRad);
+
+    // Wind speed drives arrow length (scale: 30kt = 140px, clamp 40-160)
+    const arrowLen = Math.max(40, Math.min(160, windSpd * 4.5));
+    const tipX = cx + cosW * arrowLen;
+    const tipY = cy + sinW * arrowLen;
+    const tailX = cx - cosW * 35;
+    const tailY = cy - sinW * 35;
+
+    // Arrow color based on speed
+    const wColor = windSpd <= 10 ? '#a8d878' : windSpd <= 20 ? '#f0c040' : '#e05050';
+    const wColorDim = windSpd <= 10 ? '#3a6a2a' : windSpd <= 20 ? '#806820' : '#601818';
+
+    // Glow halo
+    lay.wind += `<line x1="${tailX.toFixed(2)}" y1="${tailY.toFixed(2)}" x2="${tipX.toFixed(2)}" y2="${tipY.toFixed(2)}"
+      stroke="${wColor}" stroke-width="14" stroke-linecap="round" opacity="0.1" filter="url(#windglow)"/>`;
+
+    // Shaft
+    lay.wind += `<line x1="${tailX.toFixed(2)}" y1="${tailY.toFixed(2)}" x2="${tipX.toFixed(2)}" y2="${tipY.toFixed(2)}"
+      stroke="${wColor}" stroke-width="3" stroke-linecap="round"/>`;
+
+    // Arrowhead
+    const headLen=18, headW=9;
+    const pR = wRad + Math.PI/2;
+    const h1x = tipX - cosW*headLen + Math.cos(pR)*headW;
+    const h1y = tipY - sinW*headLen + Math.sin(pR)*headW;
+    const h2x = tipX - cosW*headLen - Math.cos(pR)*headW;
+    const h2y = tipY - sinW*headLen - Math.sin(pR)*headW;
+    lay.wind += `<polygon points="${tipX.toFixed(2)},${tipY.toFixed(2)} ${h1x.toFixed(2)},${h1y.toFixed(2)} ${h2x.toFixed(2)},${h2y.toFixed(2)}"
+      fill="${wColor}" filter="url(#glow)"/>`;
+
+    // Tail feathers (wind barb style, 1 barb per 5kt)
+    const barbs = Math.round(windSpd / 5);
+    const barbsToShow = Math.min(barbs, 8);
+    const perpR = wRad - Math.PI/2;
+    for (let b=0; b<barbsToShow; b++) {
+      const t = 0.25 + b * 0.08;
+      const bx = tailX + (tipX-tailX)*-b*0.12 - cosW*20*b/barbsToShow + cosW*10;
+      const by = tailY + (tipY-tailY)*-b*0.12 - sinW*20*b/barbsToShow + sinW*10;
+      const barbLen = b === 0 && windSpd >= 50 ? 18 : 12; // pennant vs barb
+      lay.wind += `<line x1="${bx.toFixed(2)}" y1="${by.toFixed(2)}"
+        x2="${(bx + Math.cos(perpR)*barbLen).toFixed(2)}" y2="${(by + Math.sin(perpR)*barbLen).toFixed(2)}"
+        stroke="${wColor}" stroke-width="1.8" stroke-linecap="round" opacity="0.7"/>`;
+    }
+
+    // Speed label near tail of arrow
+    const lblX = tailX - cosW*18;
+    const lblY = tailY - sinW*18;
+    lay.wind += `<rect x="${(lblX-28).toFixed(2)}" y="${(lblY-11).toFixed(2)}" width="56" height="22" rx="3"
+      fill="#0c1a0c" fill-opacity="0.85" stroke="${wColorDim}" stroke-width="1"/>`;
+    lay.wind += `<text x="${lblX.toFixed(2)}" y="${(lblY+1).toFixed(2)}" text-anchor="middle" dominant-baseline="middle"
+      fill="${wColor}" font-family="B612 Mono,monospace" font-size="10" font-weight="700"
+      filter="url(#glow)">${String(windDir).padStart(3,'0')}° · ${windSpd}${windGust?'G'+windGust:''} ${windUnit}</text>`;
+
+    // Per-runway crosswind indicators
+    runways.forEach((rwy, ri) => {
+      [[rwy.bearing1, rwy.ident1], [rwy.bearing2, rwy.ident2]].forEach(([hdg, id]) => {
+        if (!id || hdg == null) return;
+        const { headwind, crosswind } = windComponents(windDir, windSpd, hdg);
+        const xwAbs = Math.abs(crosswind);
+        const xwDir = crosswind >= 0 ? '→' : '←';
+
+        // Color coding
+        const xc = xwAbs <= 10 ? '#a8d878' : xwAbs <= 15 ? '#f0c040' : '#e05050';
+
+        // Position: find this runway end's label position
+        const b1_rad = (rwy.bearing1 - 90) * Math.PI / 180;
+        const halfLen = getHalfLen(rwy.length_ft);
+        const sign = id === rwy.ident1 ? 1 : -1;
+        const lx = cx + Math.cos(b1_rad) * (halfLen + 52) * sign;
+        const ly = cy + Math.sin(b1_rad) * (halfLen + 52) * sign;
+
+        lay.wind += `<rect x="${(lx-28).toFixed(2)}" y="${(ly+4).toFixed(2)}" width="56" height="16" rx="2"
+          fill="#0a140a" fill-opacity="0.9" stroke="${xc}" stroke-width="0.75" stroke-opacity="0.5"/>`;
+        lay.wind += `<text x="${lx.toFixed(2)}" y="${(ly+12).toFixed(2)}" text-anchor="middle" dominant-baseline="middle"
+          fill="${xc}" font-family="B612 Mono,monospace" font-size="9">XW ${xwAbs.toFixed(0)} ${xwDir}</text>`;
+      });
+    });
+
+  } else if (isCalm) {
+    // Calm indicator
+    lay.wind += `<circle cx="${cx}" cy="${cy}" r="22" fill="none" stroke="#a8d878" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.5"/>`;
+    lay.wind += `<text x="${cx}" y="${(cy+40).toFixed(1)}" text-anchor="middle" fill="#3a6a2a"
+      font-family="B612 Mono,monospace" font-size="10" letter-spacing="0.15em">CALM</text>`;
+  } else if (isVrb) {
+    // Variable wind: rotating arrows
+    for (let a=0; a<360; a+=45) {
+      const ar=(a-90)*Math.PI/180;
+      const r=28;
+      const ax=cx+Math.cos(ar)*r, ay=cy+Math.sin(ar)*r;
+      const hx=ax+Math.cos(ar)*8, hy=ay+Math.sin(ar)*8;
+      lay.wind += `<circle cx="${ax.toFixed(2)}" cy="${ay.toFixed(2)}" r="2.5" fill="#f0c040" opacity="0.5"/>`;
+    }
+    lay.wind += `<text x="${cx}" y="${(cy+46).toFixed(1)}" text-anchor="middle" fill="#806820"
+      font-family="B612 Mono,monospace" font-size="10" letter-spacing="0.15em">VRB ${windSpd} ${windUnit}</text>`;
+  }
+
+  // ── UI chrome ───────────────────────────────────────────
+  // Scale bar
+  const scaleP = Math.max(20, Math.min(80, SCALE*1000));
+  lay.ui += `<line x1="28" y1="${H-36}" x2="${28+scaleP}" y2="${H-36}" stroke="#3a6a3a" stroke-width="1.8"/>`;
+  lay.ui += `<line x1="28" y1="${H-40}" x2="28" y2="${H-32}" stroke="#3a6a3a" stroke-width="1.5"/>`;
+  lay.ui += `<line x1="${28+scaleP}" y1="${H-40}" x2="${28+scaleP}" y2="${H-32}" stroke="#3a6a3a" stroke-width="1.5"/>`;
+  lay.ui += `<text x="${28+scaleP/2}" y="${H-44}" text-anchor="middle" fill="#3a6a3a" font-family="B612 Mono,monospace" font-size="9">1000 FT</text>`;
+
+  // TRUE NORTH label
+  lay.ui += `<text x="${cx}" y="15" text-anchor="middle" fill="#2a4a2a" font-family="B612 Mono,monospace" font-size="8" letter-spacing="0.2em">TRUE NORTH ▲</text>`;
+
+  // Wind legend (bottom right)
+  lay.ui += `<text x="${W-14}" y="${H-48}" text-anchor="end" fill="#3a6a3a" font-family="B612 Mono,monospace" font-size="8">━━ WIND VECTOR</text>`;
+  lay.ui += `<text x="${W-14}" y="${H-36}" text-anchor="end" fill="#3a6a2a" font-family="B612 Mono,monospace" font-size="8">XW nn→ CROSSWIND</text>`;
+
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"
+    style="max-width:640px;display:block;border-radius:4px;overflow:hidden">
+    ${defs}
+    ${lay.bg}${lay.compass}${lay.runways}${lay.markings}${lay.labels}${lay.wind}${lay.ui}
+  </svg>`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   iOS PWA SERVICE WORKER (inline, no external file)
+═══════════════════════════════════════════════════════════ */
+if ('serviceWorker' in navigator) {
+  // Build SW script as a blob URL so no external file is needed
+  const swCode = `
+    const CACHE = 'airportwx-v1';
+    const SHELL = [
+      'https://fonts.googleapis.com/css2?family=B612+Mono:wght@400;700&family=B612:wght@400;700&display=swap'
+    ];
+
+    self.addEventListener('install', e => {
+      e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL).catch(()=>{})));
+      self.skipWaiting();
+    });
+
+    self.addEventListener('activate', e => {
+      e.waitUntil(caches.keys().then(keys =>
+        Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))
+      ));
+      self.clients.claim();
+    });
+
+    self.addEventListener('fetch', e => {
+      const url = e.request.url;
+      // Always go network-first for AVWX API (live data)
+      if (url.includes('avwx.rest')) {
+        e.respondWith(
+          fetch(e.request).catch(() =>
+            new Response(JSON.stringify({error_message:'Offline – no cached data'}),
+              {headers:{'Content-Type':'application/json'}})
+          )
+        );
+        return;
+      }
+      // Cache-first for fonts & the app shell
+      e.respondWith(
+        caches.match(e.request).then(cached =>
+          cached || fetch(e.request).then(res => {
+            if (res.ok) {
+              const clone = res.clone();
+              caches.open(CACHE).then(c => c.put(e.request, clone));
+            }
+            return res;
+          })
+        )
+      );
+    });
+  `;
+
+  const blob = new Blob([swCode], { type: 'application/javascript' });
+  const swURL = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swURL)
+    .then(() => console.log('[AirportWX] SW registered'))
+    .catch(e => console.warn('[AirportWX] SW failed:', e));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INLINE PWA MANIFEST (no external file)
+═══════════════════════════════════════════════════════════ */
+(function() {
+  const manifest = {
+    name: 'Airport WX',
+    short_name: 'AirportWX',
+    description: 'Runway diagram & METAR wind analysis',
+    start_url: '.',
+    display: 'standalone',
+    background_color: '#0e1a0e',
+    theme_color: '#0e1a0e',
+    orientation: 'portrait-primary',
+    icons: [{
+      src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='90' fill='%230e1a0e'/><circle cx='256' cy='256' r='210' fill='none' stroke='%236aaa40' stroke-width='12'/><text y='330' x='256' text-anchor='middle' font-size='220' fill='%23a8d878'>✈</text></svg>",
+      sizes: '512x512',
+      type: 'image/svg+xml',
+      purpose: 'any maskable'
+    }]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type:'application/manifest+json'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('link');
+  link.rel = 'manifest';
+  link.href = url;
+  document.head.appendChild(link);
+})();
+
+/* ═══════════════════════════════════════════════════════════
+   BOOT
+═══════════════════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('icaoInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.target.blur(); loadAll(); }
+  });
+  loadAll();
+});
+</script>
+</body>
+</html>

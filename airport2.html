@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Runway Diagram</title>
+<link href="https://fonts.googleapis.com/css2?family=B612+Mono:wght@400;700&family=B612:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #e8eed6;
+    --bg: #0e1a0e;
+    --bg2: #121f12;
+    --green-hi: #a8d878;
+    --green-mid: #6aaa40;
+    --green-dim: #3a6a2a;
+    --green-ghost: #1e3a1e;
+    --amber: #f0c040;
+    --amber-dim: #806820;
+    --red: #e05050;
+    --blue: #60c8f0;
+    --panel-border: #2a4a2a;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'B612 Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 30px 20px 50px;
+    background-image:
+      radial-gradient(ellipse at 50% 0%, #1a3020 0%, transparent 60%);
+  }
+
+  /* Subtle dot-grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: radial-gradient(circle, #2a4a2a 1px, transparent 1px);
+    background-size: 28px 28px;
+    opacity: 0.18;
+    pointer-events: none;
+  }
+
+  header {
+    width: 100%;
+    max-width: 720px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--panel-border);
+    padding-bottom: 18px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .logo {
+    font-family: 'B612', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    color: var(--green-mid);
+    margin-bottom: 4px;
+  }
+
+  h1 {
+    font-family: 'B612', sans-serif;
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: 0.08em;
+    line-height: 1;
+  }
+
+  h1 span { color: var(--green-hi); }
+
+  .header-meta {
+    text-align: right;
+    font-size: 0.7rem;
+    color: var(--green-dim);
+    line-height: 1.7;
+  }
+
+  /* Search */
+  .search-row {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+    max-width: 720px;
+    margin-bottom: 28px;
+  }
+
+  .search-row input {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid var(--panel-border);
+    color: var(--green-hi);
+    font-family: 'B612 Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding: 10px 16px;
+    border-radius: 3px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    max-width: 160px;
+  }
+
+  .search-row input:focus {
+    border-color: var(--green-hi);
+    box-shadow: 0 0 0 2px #a8d87822;
+  }
+
+  .search-row button {
+    background: var(--green-mid);
+    color: #0a140a;
+    border: none;
+    font-family: 'B612 Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 10px 20px;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    transition: background 0.15s;
+  }
+
+  .search-row button:hover { background: var(--green-hi); }
+  .search-row button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Main card */
+  .card {
+    width: 100%;
+    max-width: 720px;
+    background: var(--bg2);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    overflow: hidden;
+    animation: fadeIn 0.4s ease;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .card-header {
+    border-bottom: 1px solid var(--panel-border);
+    padding: 16px 22px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .station-id {
+    font-family: 'B612', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--green-hi);
+    letter-spacing: 0.12em;
+    line-height: 1;
+  }
+
+  .station-details {
+    flex: 1;
+    font-size: 0.72rem;
+    line-height: 1.8;
+    color: var(--green-dim);
+  }
+
+  .station-details strong { color: var(--ink); }
+
+  .diagram-area {
+    padding: 24px;
+    display: flex;
+    justify-content: center;
+  }
+
+  /* Runway table */
+  .rwy-table-wrap {
+    padding: 0 22px 22px;
+  }
+
+  .section-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.3em;
+    color: var(--green-dim);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-top: 4px;
+    border-top: 1px solid var(--panel-border);
+    padding-top: 14px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+  }
+
+  thead th {
+    text-align: left;
+    font-weight: 400;
+    color: var(--green-dim);
+    letter-spacing: 0.15em;
+    font-size: 0.62rem;
+    padding: 0 10px 8px 10px;
+    border-bottom: 1px solid var(--green-ghost);
+  }
+
+  tbody tr { transition: background 0.1s; }
+  tbody tr:hover { background: #1a2e1a; }
+
+  tbody td {
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--green-ghost);
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  .rwy-id {
+    font-family: 'B612', sans-serif;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--amber);
+    letter-spacing: 0.08em;
+  }
+
+  .pill {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 2px;
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .pill-asphalt { background: #1a2a1a; color: var(--green-mid); border: 1px solid var(--green-dim); }
+  .pill-concrete { background: #1a1e28; color: #80a0d0; border: 1px solid #304060; }
+  .pill-grass { background: #1a2a10; color: #80c040; border: 1px solid #406020; }
+  .pill-lit { background: #2a2800; color: var(--amber); border: 1px solid var(--amber-dim); }
+
+  /* Status/msg */
+  .msg {
+    padding: 50px;
+    text-align: center;
+    color: var(--green-dim);
+    font-size: 0.8rem;
+    letter-spacing: 0.2em;
+  }
+  .msg.error { color: var(--red); }
+  .msg.loading::after {
+    content: ' ▌';
+    animation: cur 0.7s step-end infinite;
+  }
+  @keyframes cur { 0%,100%{opacity:1} 50%{opacity:0} }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">AVWX · Station Data</div>
+    <h1>RUNWAY <span>DIAGRAM</span></h1>
+  </div>
+  <div class="header-meta">
+    BEARING-ACCURATE<br>
+    PROPORTIONAL LENGTHS<br>
+    TRUE NORTH UP
+  </div>
+</header>
+
+<div class="search-row">
+  <input type="text" id="icaoInput" value="KFRG" maxlength="6" placeholder="ICAO" spellcheck="false"/>
+  <button id="fetchBtn" onclick="loadStation()">LOAD AIRPORT</button>
+</div>
+
+<div id="outputArea">
+  <div class="card">
+    <div class="msg loading">INITIALIZING</div>
+  </div>
+</div>
+
+<script>
+const TOKEN = '62G41L7IH8f-X4IbQwmHvIM5wfHhYrkRMJFaDmilWHM';
+
+async function loadStation() {
+  const icao = document.getElementById('icaoInput').value.trim().toUpperCase();
+  if (!icao) return;
+  document.getElementById('fetchBtn').disabled = true;
+  document.getElementById('outputArea').innerHTML = `<div class="card"><div class="msg loading">FETCHING ${icao}</div></div>`;
+
+  try {
+    const res = await fetch(`https://avwx.rest/api/station/${icao}?token=${TOKEN}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error_message || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    render(data);
+  } catch (e) {
+    document.getElementById('outputArea').innerHTML = `<div class="card"><div class="msg error">⚠ ${e.message}</div></div>`;
+  } finally {
+    document.getElementById('fetchBtn').disabled = false;
+  }
+}
+
+function render(s) {
+  const runways = s.runways || [];
+  const svgMarkup = runways.length ? buildDiagram(runways) : '<div class="msg">No runway data in API response.</div>';
+
+  document.getElementById('outputArea').innerHTML = `
+    <div class="card">
+      <div class="card-header">
+        <div class="station-id">${s.icao || s.gps || '—'}</div>
+        <div class="station-details">
+          <strong>${s.name || '—'}</strong><br>
+          ${[s.city, s.state, s.country].filter(Boolean).join(', ')} &nbsp;·&nbsp;
+          ELEV <strong>${s.elevation_ft != null ? s.elevation_ft + ' ft' : '—'}</strong> &nbsp;·&nbsp;
+          ${s.type ? s.type.replace(/_/g,' ').toUpperCase() : ''}
+          ${s.iata ? `&nbsp;·&nbsp; IATA <strong>${s.iata}</strong>` : ''}
+        </div>
+      </div>
+
+      <div class="diagram-area">${svgMarkup}</div>
+
+      ${runways.length ? `
+      <div class="rwy-table-wrap">
+        <div class="section-label">Runway Details</div>
+        <table>
+          <thead>
+            <tr>
+              <th>RUNWAY</th>
+              <th>BEARING 1</th>
+              <th>BEARING 2</th>
+              <th>LENGTH</th>
+              <th>WIDTH</th>
+              <th>SURFACE</th>
+              <th>LIGHTS</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${runways.map(r => `
+              <tr>
+                <td class="rwy-id">${r.ident1 || '?'}/${r.ident2 || '?'}</td>
+                <td>${bearingLabel(r.bearing1)} ${r.bearing1 != null ? Math.round(r.bearing1)+'°' : '—'}</td>
+                <td>${bearingLabel(r.bearing2)} ${r.bearing2 != null ? Math.round(r.bearing2)+'°' : '—'}</td>
+                <td>${r.length_ft != null ? r.length_ft.toLocaleString()+' ft' : '—'}</td>
+                <td>${r.width_ft != null ? r.width_ft+' ft' : '—'}</td>
+                <td><span class="pill pill-${(r.surface||'').toLowerCase()}">${r.surface || '—'}</span></td>
+                <td>${r.lights ? '<span class="pill pill-lit">LIT</span>' : '<span style="color:var(--green-dim)">NGTL</span>'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>` : ''}
+    </div>
+  `;
+}
+
+function bearingLabel(b) {
+  if (b == null) return '';
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(b / 22.5) % 16];
+}
+
+function buildDiagram(runways) {
+  const W = 640, H = 620;
+  const cx = W / 2, cy = H / 2;
+
+  // Find longest runway to scale all others proportionally
+  const maxLen = Math.max(...runways.map(r => r.length_ft || 1));
+  const SCALE = 200 / maxLen; // longest runway = 200px half-length
+
+  // Clamp min/max half-lengths
+  const MIN_HALF = 55, MAX_HALF = 220;
+
+  // Maximum width for scaling
+  const maxWidth = Math.max(...runways.map(r => r.width_ft || 1));
+  const WIDTH_SCALE = 22 / maxWidth; // widest = 22px visual half-width
+  const MIN_HALF_W = 6, MAX_HALF_W = 26;
+
+  const getHalfLen = (ft) => Math.max(MIN_HALF, Math.min(MAX_HALF, (ft || maxLen) * SCALE));
+  const getHalfW   = (ft) => Math.max(MIN_HALF_W, Math.min(MAX_HALF_W, (ft || maxWidth) * WIDTH_SCALE));
+
+  // Color palette per runway index
+  const RWY_COLORS = [
+    { fill: '#1a3010', stroke: '#4a8a30', threshold: '#a8d878', ident: '#f0c040', center: '#2a5020' },
+    { fill: '#10202a', stroke: '#307080', threshold: '#60c8f0', ident: '#60c8f0', center: '#1a3a48' },
+    { fill: '#2a1a10', stroke: '#80502a', threshold: '#d09050', ident: '#d09050', center: '#4a2a18' },
+    { fill: '#1a1030', stroke: '#504878', threshold: '#9888d8', ident: '#9888d8', center: '#2a1e48' },
+  ];
+
+  let defs = `<defs>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softglow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>`;
+
+  // Gradient for each runway
+  runways.forEach((_, i) => {
+    const c = RWY_COLORS[i % RWY_COLORS.length];
+    defs += `<linearGradient id="rwyGrad${i}" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="${c.stroke}" stop-opacity="0.15"/>
+      <stop offset="50%" stop-color="${c.fill}"/>
+      <stop offset="100%" stop-color="${c.stroke}" stop-opacity="0.15"/>
+    </linearGradient>`;
+  });
+  defs += '</defs>';
+
+  let layers = {
+    bg: '',
+    compass: '',
+    runways: '',
+    markings: '',
+    labels: '',
+    ui: ''
+  };
+
+  // ── Background ──────────────────────────────────────────────────────────────
+  layers.bg += `<rect width="${W}" height="${H}" fill="#0c160c"/>`;
+  layers.bg += `<radialGradient id="bgRad" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#142214"/>
+    <stop offset="100%" stop-color="#0a120a"/>
+  </radialGradient>`;
+  // Actually just inline it:
+  layers.bg = `<rect width="${W}" height="${H}" fill="url(#bgRadDiag)"/>
+    <radialGradient id="bgRadDiag" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#182818"/>
+      <stop offset="100%" stop-color="#090f09"/>
+    </radialGradient>`;
+
+  // ── Compass rose ────────────────────────────────────────────────────────────
+  const COMPASS_R = 260;
+
+  // Outer ring
+  layers.compass += `<circle cx="${cx}" cy="${cy}" r="${COMPASS_R}" fill="none" stroke="#1e3a1e" stroke-width="1"/>`;
+  layers.compass += `<circle cx="${cx}" cy="${cy}" r="${COMPASS_R - 18}" fill="none" stroke="#152515" stroke-width="0.5"/>`;
+
+  // Degree tick marks
+  for (let deg = 0; deg < 360; deg++) {
+    const isMajor30 = deg % 30 === 0;
+    const isMajor10 = deg % 10 === 0;
+    const isMajor5  = deg % 5 === 0;
+    if (!isMajor5 && !isMajor10 && !isMajor30) continue;
+
+    const rad = (deg - 90) * Math.PI / 180; // 0° at top
+    const r_outer = COMPASS_R;
+    const r_inner = isMajor30 ? COMPASS_R - 16 : isMajor10 ? COMPASS_R - 10 : COMPASS_R - 6;
+    const x1 = cx + Math.cos(rad) * r_outer;
+    const y1 = cy + Math.sin(rad) * r_outer;
+    const x2 = cx + Math.cos(rad) * r_inner;
+    const y2 = cy + Math.sin(rad) * r_inner;
+    const strokeColor = isMajor30 ? '#3a6a3a' : isMajor10 ? '#244024' : '#1c301c';
+    const strokeW = isMajor30 ? 1.5 : 0.75;
+    layers.compass += `<line x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}" stroke="${strokeColor}" stroke-width="${strokeW}"/>`;
+  }
+
+  // Cardinal & intercardinal labels
+  const cardinalDefs = [
+    { label: 'N', deg: 0,   r: COMPASS_R + 20, size: 16, weight: 700, color: '#a8d878' },
+    { label: 'E', deg: 90,  r: COMPASS_R + 20, size: 12, weight: 400, color: '#4a7a4a' },
+    { label: 'S', deg: 180, r: COMPASS_R + 20, size: 12, weight: 400, color: '#4a7a4a' },
+    { label: 'W', deg: 270, r: COMPASS_R + 20, size: 12, weight: 400, color: '#4a7a4a' },
+    { label: '030', deg: 30,  r: COMPASS_R - 26, size: 7, weight: 400, color: '#2a4a2a' },
+    { label: '060', deg: 60,  r: COMPASS_R - 26, size: 7, weight: 400, color: '#2a4a2a' },
+    { label: '120', deg: 120, r: COMPASS_R - 26, size: 7, weight: 400, color: '#2a4a2a' },
+    { label: '150', deg: 150, r: COMPASS_R - 26, size: 7, weight: 400, color: '#2a4a2a' },
+    { label: '210', deg: 210, r: COMPASS_R - 26, size: 7, weight: 400, color: '#2a4a2a' },
+    { label: '240', deg: 240, r: COMPASS_R - 26, size: 7, weight: 400, color: '#2a4a2a' },
+    { label: '300', deg: 300, r: COMPASS_R - 26, size: 7, weight: 400, color: '#2a4a2a' },
+    { label: '330', deg: 330, r: COMPASS_R - 26, size: 7, weight: 400, color: '#2a4a2a' },
+  ];
+
+  cardinalDefs.forEach(c => {
+    const rad = (c.deg - 90) * Math.PI / 180;
+    const x = cx + Math.cos(rad) * c.r;
+    const y = cy + Math.sin(rad) * c.r;
+    layers.compass += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" fill="${c.color}" font-family="B612 Mono,monospace" font-size="${c.size}" font-weight="${c.weight}">${c.label}</text>`;
+  });
+
+  // North pointer triangle
+  {
+    const nRad = -Math.PI / 2;
+    const tipX = cx + Math.cos(nRad) * (COMPASS_R - 32);
+    const tipY = cy + Math.sin(nRad) * (COMPASS_R - 32);
+    const baseR = COMPASS_R - 50;
+    const b1x = cx + Math.cos(nRad + 0.15) * baseR;
+    const b1y = cy + Math.sin(nRad + 0.15) * baseR;
+    const b2x = cx + Math.cos(nRad - 0.15) * baseR;
+    const b2y = cy + Math.sin(nRad - 0.15) * baseR;
+    layers.compass += `<polygon points="${tipX.toFixed(1)},${tipY.toFixed(1)} ${b1x.toFixed(1)},${b1y.toFixed(1)} ${b2x.toFixed(1)},${b2y.toFixed(1)}" fill="#a8d878" opacity="0.6"/>`;
+  }
+
+  // Inner area (tarmac)
+  layers.compass += `<circle cx="${cx}" cy="${cy}" r="180" fill="#0c160c" opacity="0.8"/>`;
+  // Airport boundary suggestion
+  layers.compass += `<ellipse cx="${cx}" cy="${cy}" rx="175" ry="175" fill="none" stroke="#1a301a" stroke-width="1" stroke-dasharray="8,6"/>`;
+
+  // Airport center point
+  layers.compass += `<circle cx="${cx}" cy="${cy}" r="4" fill="#2a5a2a" stroke="#4a8a4a" stroke-width="1.5"/>`;
+  layers.compass += `<circle cx="${cx}" cy="${cy}" r="1.5" fill="#a8d878"/>`;
+
+  // ── Runways ──────────────────────────────────────────────────────────────────
+  runways.forEach((rwy, ri) => {
+    const c = RWY_COLORS[ri % RWY_COLORS.length];
+
+    const b1 = rwy.bearing1 ?? 0;
+    const halfLen = getHalfLen(rwy.length_ft);
+    const halfW   = getHalfW(rwy.width_ft);
+
+    // bearing1 points from center toward end1
+    // bearing2 is opposite: bearing2 = bearing1 + 180
+    // We draw from end1 to end2 through center
+    const rad1 = (b1 - 90) * Math.PI / 180; // convert to SVG angle (0=right, but we want 0=up)
+    // Actually: bearing is degrees from North clockwise.
+    // SVG: angle from positive-x axis, counterclockwise.
+    // So: svgAngle = (bearing - 90) degrees = (bearing - 90) * PI/180 radians
+    const bRad = (b1 - 90) * Math.PI / 180;
+
+    const sinB = Math.sin(bRad);
+    const cosB = Math.cos(bRad);
+
+    // End 1 (bearing1 direction from center)
+    const e1x = cx + cosB * halfLen;
+    const e1y = cy + sinB * halfLen;
+    // End 2 (opposite direction)
+    const e2x = cx - cosB * halfLen;
+    const e2y = cy - sinB * halfLen;
+
+    // Perpendicular for width
+    const perpRad = bRad + Math.PI / 2;
+    const pdx = Math.cos(perpRad) * halfW;
+    const pdy = Math.sin(perpRad) * halfW;
+
+    // Four corners
+    const p1 = [e1x + pdx, e1y + pdy];
+    const p2 = [e1x - pdx, e1y - pdy];
+    const p3 = [e2x - pdx, e2y - pdy];
+    const p4 = [e2x + pdx, e2y + pdy];
+    const pts = [p1, p2, p3, p4].map(p => p.map(v => v.toFixed(2)).join(',')).join(' ');
+
+    // Shadow/glow halo
+    layers.runways += `<polygon points="${pts}" fill="${c.stroke}" opacity="0.08" filter="url(#softglow)"/>`;
+
+    // Main runway body
+    layers.runways += `<polygon points="${pts}" fill="${c.fill}" stroke="${c.stroke}" stroke-width="1.2"/>`;
+
+    // Pavement texture: subtle longitudinal stripe pattern
+    const stripeCount = 3;
+    for (let s = 1; s < stripeCount; s++) {
+      const t = s / stripeCount;
+      const sx1 = e1x + pdx * (1 - 2*t);
+      const sy1 = e1y + pdy * (1 - 2*t);
+      const sx2 = e2x + pdx * (1 - 2*t);
+      const sy2 = e2y + pdy * (1 - 2*t);
+      layers.runways += `<line x1="${sx1.toFixed(2)}" y1="${sy1.toFixed(2)}" x2="${sx2.toFixed(2)}" y2="${sy2.toFixed(2)}" stroke="${c.center}" stroke-width="0.5" opacity="0.5"/>`;
+    }
+
+    // Center line dashes
+    const dashCount = 10;
+    for (let d = 0; d < dashCount; d++) {
+      const t1 = (d + 0.15) / dashCount;
+      const t2 = (d + 0.6) / dashCount;
+      const dx1 = e1x + (e2x - e1x) * t1;
+      const dy1 = e1y + (e2y - e1y) * t1;
+      const dx2 = e1x + (e2x - e1x) * t2;
+      const dy2 = e1y + (e2y - e1y) * t2;
+      layers.markings += `<line x1="${dx1.toFixed(2)}" y1="${dy1.toFixed(2)}" x2="${dx2.toFixed(2)}" y2="${dy2.toFixed(2)}" stroke="${c.center}" stroke-width="1" opacity="0.9"/>`;
+    }
+
+    // Threshold bars (end1)
+    const THRESH_INSET = halfW * 0.06;
+    const THRESH_DIST = 8;
+    const t1cx = e1x - cosB * THRESH_DIST;
+    const t1cy = e1y - sinB * THRESH_DIST;
+    layers.markings += `<line 
+      x1="${(t1cx + pdx * 0.85).toFixed(2)}" y1="${(t1cy + pdy * 0.85).toFixed(2)}"
+      x2="${(t1cx - pdx * 0.85).toFixed(2)}" y2="${(t1cy - pdy * 0.85).toFixed(2)}"
+      stroke="${c.threshold}" stroke-width="2" opacity="0.9"/>`;
+
+    // Threshold bars (end2)
+    const t2cx = e2x + cosB * THRESH_DIST;
+    const t2cy = e2y + sinB * THRESH_DIST;
+    layers.markings += `<line 
+      x1="${(t2cx + pdx * 0.85).toFixed(2)}" y1="${(t2cy + pdy * 0.85).toFixed(2)}"
+      x2="${(t2cx - pdx * 0.85).toFixed(2)}" y2="${(t2cy - pdy * 0.85).toFixed(2)}"
+      stroke="${c.threshold}" stroke-width="2" opacity="0.9"/>`;
+
+    // Touchdown zone marks (pairs of bars near each threshold)
+    [-1, 1].forEach(side => {
+      const tdzInset = halfLen * 0.28;
+      const tdzT = e1x - cosB * tdzInset;
+      const tdzU = e1y - sinB * tdzInset;
+      const barW = halfW * 0.35;
+      const barOff = halfW * 0.55;
+      // end1 side
+      layers.markings += `<line
+        x1="${(tdzT + pdx * barOff + pdx * side * 0.0).toFixed(2)}" y1="${(tdzU + pdy * barOff).toFixed(2)}"
+        x2="${(tdzT + pdx * (barOff - barW)).toFixed(2)}" y2="${(tdzU + pdy * (barOff - barW)).toFixed(2)}"
+        stroke="${c.threshold}" stroke-width="1.5" opacity="0.4"/>`;
+    });
+
+    // Displaced threshold chevron (visual detail only)
+    // Runway lights dots along edges
+    if (rwy.lights) {
+      const lightCount = 14;
+      for (let l = 0; l <= lightCount; l++) {
+        const t = l / lightCount;
+        const lx = e1x + (e2x - e1x) * t;
+        const ly = e1y + (e2y - e1y) * t;
+        layers.markings += `<circle cx="${(lx + pdx).toFixed(2)}" cy="${(ly + pdy).toFixed(2)}" r="1.2" fill="${c.threshold}" opacity="0.6"/>`;
+        layers.markings += `<circle cx="${(lx - pdx).toFixed(2)}" cy="${(ly - pdy).toFixed(2)}" r="1.2" fill="${c.threshold}" opacity="0.6"/>`;
+      }
+    }
+
+    // ── Runway number labels ──────────────────────────────────────────────────
+    const LABEL_OFFSET = halfLen + 22;
+    const l1x = cx + cosB * LABEL_OFFSET;
+    const l1y = cy + sinB * LABEL_OFFSET;
+    const l2x = cx - cosB * LABEL_OFFSET;
+    const l2y = cy - sinB * LABEL_OFFSET;
+
+    // Rotate label to read upright relative to runway heading
+    const labelRotate1 = b1; // degrees
+    const labelRotate2 = (b1 + 180) % 360;
+
+    // Helper: normalize rotation so text isn't upside down
+    function normRot(deg) {
+      let r = deg % 360;
+      if (r > 90 && r <= 270) r = (r + 180) % 360;
+      return r;
+    }
+
+    const bg1 = `<rect x="${(l1x - 14).toFixed(2)}" y="${(l1y - 10).toFixed(2)}" width="28" height="20" rx="2" fill="${c.fill}" fill-opacity="0.9" stroke="${c.stroke}" stroke-width="1"
+      transform="rotate(${normRot(labelRotate1).toFixed(1)}, ${l1x.toFixed(2)}, ${l1y.toFixed(2)})"/>`;
+    const bg2 = `<rect x="${(l2x - 14).toFixed(2)}" y="${(l2y - 10).toFixed(2)}" width="28" height="20" rx="2" fill="${c.fill}" fill-opacity="0.9" stroke="${c.stroke}" stroke-width="1"
+      transform="rotate(${normRot(labelRotate2).toFixed(1)}, ${l2x.toFixed(2)}, ${l2y.toFixed(2)})"/>`;
+
+    const txt1 = `<text x="${l1x.toFixed(2)}" y="${l1y.toFixed(2)}" text-anchor="middle" dominant-baseline="middle"
+      fill="${c.ident}" font-family="B612 Mono,monospace" font-size="11" font-weight="700"
+      transform="rotate(${normRot(labelRotate1).toFixed(1)}, ${l1x.toFixed(2)}, ${l1y.toFixed(2)})"
+      filter="url(#glow)">${rwy.ident1 || '?'}</text>`;
+
+    const txt2 = `<text x="${l2x.toFixed(2)}" y="${l2y.toFixed(2)}" text-anchor="middle" dominant-baseline="middle"
+      fill="${c.ident}" font-family="B612 Mono,monospace" font-size="11" font-weight="700"
+      transform="rotate(${normRot(labelRotate2).toFixed(1)}, ${l2x.toFixed(2)}, ${l2y.toFixed(2)})"
+      filter="url(#glow)">${rwy.ident2 || '?'}</text>`;
+
+    layers.labels += bg1 + bg2 + txt1 + txt2;
+
+    // Bearing annotation below label
+    const BA_OFFSET = halfLen + 38;
+    const ba1x = cx + cosB * BA_OFFSET;
+    const ba1y = cy + sinB * BA_OFFSET;
+    const ba2x = cx - cosB * BA_OFFSET;
+    const ba2y = cy - sinB * BA_OFFSET;
+
+    layers.labels += `<text x="${ba1x.toFixed(1)}" y="${ba1y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle"
+      fill="${c.stroke}" font-family="B612 Mono,monospace" font-size="8"
+      transform="rotate(${normRot(labelRotate1).toFixed(1)}, ${ba1x.toFixed(1)}, ${ba1y.toFixed(1)})">${Math.round(rwy.bearing1 ?? 0).toString().padStart(3,'0')}°</text>`;
+
+    layers.labels += `<text x="${ba2x.toFixed(1)}" y="${ba2y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle"
+      fill="${c.stroke}" font-family="B612 Mono,monospace" font-size="8"
+      transform="rotate(${normRot(labelRotate2).toFixed(1)}, ${ba2x.toFixed(1)}, ${ba2y.toFixed(1)})">${Math.round(rwy.bearing2 ?? 0).toString().padStart(3,'0')}°</text>`;
+  });
+
+  // ── Legend / scale bar ────────────────────────────────────────────────────────
+  const LX = 30, LY = H - 38;
+  const scalePixels = SCALE * 1000; // 1000 ft in pixels (clamped visual)
+  const clampedScale = Math.max(20, Math.min(80, scalePixels));
+  layers.ui += `<line x1="${LX}" y1="${LY}" x2="${LX + clampedScale}" y2="${LY}" stroke="#3a6a3a" stroke-width="2"/>`;
+  layers.ui += `<line x1="${LX}" y1="${LY - 4}" x2="${LX}" y2="${LY + 4}" stroke="#3a6a3a" stroke-width="1.5"/>`;
+  layers.ui += `<line x1="${LX + clampedScale}" y1="${LY - 4}" x2="${LX + clampedScale}" y2="${LY + 4}" stroke="#3a6a3a" stroke-width="1.5"/>`;
+  layers.ui += `<text x="${LX + clampedScale / 2}" y="${LY - 8}" text-anchor="middle" fill="#3a6a3a" font-family="B612 Mono,monospace" font-size="9">1000 FT</text>`;
+
+  // Tiny "TRUE NORTH" label
+  layers.ui += `<text x="${cx}" y="16" text-anchor="middle" fill="#3a6a3a" font-family="B612 Mono,monospace" font-size="8" letter-spacing="0.2em">TRUE NORTH ▲</text>`;
+
+  // ── Assemble SVG ──────────────────────────────────────────────────────────────
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg"
+    style="max-width:640px;display:block;border-radius:4px;overflow:hidden">
+    ${defs}
+    ${layers.bg}
+    ${layers.compass}
+    ${layers.runways}
+    ${layers.markings}
+    ${layers.labels}
+    ${layers.ui}
+  </svg>`;
+}
+
+// Enter key
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('icaoInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') loadStation();
+  });
+  loadStation();
+});
+</script>
+</body>
+</html>
