@@ -782,6 +782,7 @@ function renderRunwayDiagram() {
   // ── Wind arrow (from center outward, pointing toward wind-FROM direction) ──
   const wd = metarData.wind_direction?.value;
   const ws = metarData.wind_speed?.value || 0;
+  const wg = metarData.wind_gust?.value ?? null;
 
   if (wd != null && wd !== 'VRB') {
     // FROM side radial: opposite of TO direction
@@ -815,15 +816,30 @@ function renderRunwayDiagram() {
     ctx.fill();
     ctx.restore();
 
-    // Direction + speed — top-right corner
-    const pad = 8;
+    // Direction + speed + gust — top-right corner
+    const pad     = 8;
+    const lineH   = Math.max(16, Math.round(size * 0.042));
+    const szLarge = Math.max(13, Math.round(size * 0.038));
+    const szSmall = Math.max(10, Math.round(size * 0.027));
     ctx.textAlign    = 'right';
     ctx.textBaseline = 'top';
-    ctx.font         = `bold ${Math.max(13, Math.round(size * 0.038))}px "Share Tech Mono"`;
-    ctx.fillStyle    = '#ff6b35';
+
+    // Direction
+    ctx.font      = `bold ${szLarge}px "Share Tech Mono"`;
+    ctx.fillStyle = '#ff6b35';
     ctx.fillText(`${String(wd).padStart(3, '0')}°`, size - pad, pad);
-    ctx.font = `${Math.max(10, Math.round(size * 0.027))}px "Share Tech Mono"`;
-    ctx.fillText(`${ws}kt`, size - pad, pad + Math.max(16, Math.round(size * 0.042)));
+
+    // Speed
+    ctx.font      = `${szSmall}px "Share Tech Mono"`;
+    ctx.fillStyle = '#ff6b35';
+    ctx.fillText(`${ws}kt`, size - pad, pad + lineH);
+
+    // Gust (only when present)
+    if (wg != null) {
+      ctx.font      = `bold ${szSmall}px "Share Tech Mono"`;
+      ctx.fillStyle = '#ffd60a';   // warn yellow to stand out from steady wind
+      ctx.fillText(`G${wg}kt`, size - pad, pad + lineH * 2);
+    }
 
   } else if (wd === 'VRB') {
     ctx.beginPath();
@@ -833,15 +849,28 @@ function renderRunwayDiagram() {
     ctx.lineWidth   = 2;
     ctx.stroke();
     ctx.setLineDash([]);
+
     // Labels — top-right corner
-    const pad = 8;
-    ctx.font         = `bold ${Math.max(13, Math.round(size * 0.038))}px "Share Tech Mono"`;
-    ctx.fillStyle    = '#ff6b35';
+    const pad     = 8;
+    const lineH   = Math.max(16, Math.round(size * 0.042));
+    const szLarge = Math.max(13, Math.round(size * 0.038));
+    const szSmall = Math.max(10, Math.round(size * 0.027));
     ctx.textAlign    = 'right';
     ctx.textBaseline = 'top';
+
+    ctx.font      = `bold ${szLarge}px "Share Tech Mono"`;
+    ctx.fillStyle = '#ff6b35';
     ctx.fillText('VRB', size - pad, pad);
-    ctx.font = `${Math.max(10, Math.round(size * 0.027))}px "Share Tech Mono"`;
-    ctx.fillText(`${ws}kt`, size - pad, pad + Math.max(16, Math.round(size * 0.042)));
+
+    ctx.font      = `${szSmall}px "Share Tech Mono"`;
+    ctx.fillStyle = '#ff6b35';
+    ctx.fillText(`${ws}kt`, size - pad, pad + lineH);
+
+    if (wg != null) {
+      ctx.font      = `bold ${szSmall}px "Share Tech Mono"`;
+      ctx.fillStyle = '#ffd60a';
+      ctx.fillText(`G${wg}kt`, size - pad, pad + lineH * 2);
+    }
   }
 
   // Center dot
