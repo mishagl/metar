@@ -126,7 +126,7 @@
     display: flex; gap: 16px; align-items: flex-start;
   }
   .decoded-card { flex: 1; min-width: 0; }
-  .rose-card    { flex: 0 0 460px; max-width: 100%; }
+  .rose-card    { flex: 0 0 660px; max-width: 100%; }
   @media (max-width: 880px) {
     .top-row { flex-direction: column; }
     .rose-card { flex: none; width: 100%; }
@@ -207,6 +207,22 @@
   .cloud-cover { width: 44px; color: var(--warn); }
   .cloud-alt   { color: var(--text); }
   .cloud-type  { color: var(--muted); font-size: 11px; }
+
+  /* Runway table */
+  .rw-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
+  .rw-table th {
+    text-align: left; padding: 6px 10px;
+    font-size: 9px; letter-spacing: 0.18em; color: var(--muted); text-transform: uppercase;
+    border-bottom: 1px solid var(--border); white-space: nowrap;
+  }
+  .rw-table td { padding: 7px 10px; border-bottom: 1px solid rgba(30,45,69,0.5); vertical-align: middle; }
+  .rw-table tr:last-child td { border-bottom: none; }
+  .rw-table tr:hover td { background: rgba(0,212,255,0.04); }
+  .rw-ident  { color: var(--warn); font-size: 14px; letter-spacing: 0.08em; white-space: nowrap; }
+  .rw-len    { color: var(--accent); }
+  .rw-width  { color: var(--text); }
+  .rw-surf   { color: var(--green); text-transform: uppercase; font-size: 11px; }
+  .rw-hdg    { color: var(--muted); }
 
   /* Loading spinner */
   .spinner {
@@ -319,6 +335,30 @@
       </div>
     </div>
 
+    <!-- Runway List -->
+    <div class="card" id="runwayListCard">
+      <div class="card-header">
+        <div class="dot" style="background:var(--accent)"></div>
+        RUNWAYS
+      </div>
+      <div style="overflow-x:auto">
+        <table class="rw-table" id="runwayTable">
+          <thead>
+            <tr>
+              <th>IDENT 1</th>
+              <th>IDENT 2</th>
+              <th>LENGTH</th>
+              <th>WIDTH</th>
+              <th>SURFACE</th>
+              <th>HDG 1</th>
+              <th>HDG 2</th>
+            </tr>
+          </thead>
+          <tbody id="runwayTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 </main>
 
@@ -381,8 +421,45 @@ function renderAll(icao) {
   renderDecoded();
   renderClouds();
   renderStation(icao);
+  renderRunwayList();
   requestAnimationFrame(renderRunwayDiagram);
   document.getElementById('sections').classList.add('visible');
+}
+
+function renderRunwayList() {
+  const runways = (stationData.runways || []).slice();
+  const card = document.getElementById('runwayListCard');
+  const tbody = document.getElementById('runwayTableBody');
+  if (!runways.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  // Sort by ident1 numerically then by modifier
+  const modOrder = { 'L': 0, 'C': 1, '': 1, 'R': 2 };
+  function parseIdent(id) {
+    const m = (id || '').match(/^(\d+)([LRC]?)$/i);
+    return m ? { num: parseInt(m[1], 10), mod: m[2].toUpperCase() } : { num: 0, mod: '' };
+  }
+  runways.sort((a, b) => {
+    const pa = parseIdent(a.ident1), pb = parseIdent(b.ident1);
+    if (pa.num !== pb.num) return pa.num - pb.num;
+    return (modOrder[pa.mod] ?? 1) - (modOrder[pb.mod] ?? 1);
+  });
+
+  const fmt = (v, unit) => (v != null && v !== '') ? `${v} ${unit}` : '---';
+  const fmtHdg = v => (v != null && isFinite(v)) ? `${parseFloat(v).toFixed(1)}°` : '---';
+
+  tbody.innerHTML = runways.map(rw => {
+    const surf = (rw.surface || '---').replace(/_/g, ' ');
+    return `<tr>
+      <td class="rw-ident">${rw.ident1 || '---'}</td>
+      <td class="rw-ident">${rw.ident2 || '---'}</td>
+      <td class="rw-len">${fmt(rw.length_ft, 'ft')}</td>
+      <td class="rw-width">${fmt(rw.width_ft, 'ft')}</td>
+      <td class="rw-surf">${surf}</td>
+      <td class="rw-hdg">${fmtHdg(rw.bearing1)}</td>
+      <td class="rw-hdg">${fmtHdg(rw.bearing2)}</td>
+    </tr>`;
+  }).join('');
 }
 
 function renderRawMetar() {
@@ -505,8 +582,8 @@ function renderRunwayDiagram() {
   const wrap    = document.getElementById('runway-canvas-wrap');
 
   // Fill the rose card — bigger than before
-  const wrapW = wrap.clientWidth > 0 ? wrap.clientWidth - 20 : 420;
-  const size  = Math.max(300, Math.min(wrapW, 500));
+  const wrapW = wrap.clientWidth > 0 ? wrap.clientWidth - 20 : 620;
+  const size  = Math.max(400, Math.min(wrapW, 700));
   canvas.width  = size;
   canvas.height = size;
 
@@ -570,44 +647,92 @@ function renderRunwayDiagram() {
   });
 
   // ── Parallel-runway grouping ──────────────────────────────────────
-  // Group runways whose heading (rounded to nearest degree, mod 180) is the same
-  const groups = {};
+  // Use bearing1/bearing2 (actual measured magnetic bearings from the API) to
+  // determine the runway's true direction.  Runways with the same physical
+  // alignment share nearly identical bearings, so a tight threshold (≤ 5°) is
+  // enough — even for airports like KLAX/KDFW where designators are off by ±1.
+  //
+  // bearing1 is the heading looking toward end-1 (ident1 side).
+  // We normalise every bearing to [0°, 180°) so that reciprocal ends of the
+  // same runway family collapse to the same value.
+
+  const CLUSTER_THRESHOLD = 5; // degrees — bearing1/2 are geodetically accurate
+
+  // Helper: split an ident like "9R" into { num: 9, mod: "R" }
+  function parseIdent(ident) {
+    const m = (ident || '').match(/^(\d+)([LRC]?)$/i);
+    return m ? { num: parseInt(m[1], 10), mod: m[2].toUpperCase() } : { num: 0, mod: '' };
+  }
+
+  // Collect valid runways; prefer bearing1, fall back to bearing2, then
+  // heading_deg, then ident-derived heading.
+  const rwItems = [];
   runways.forEach(rw => {
-    const hdg = rw.heading_deg ?? (parseFloat(rw.ident1) * 10);
+    // bearing1 points from threshold-2 → threshold-1 (the ident1 direction).
+    // Use it as the canonical heading; if absent fall back gracefully.
+    let hdg = rw.bearing1 ?? rw.bearing2 ?? rw.heading_deg ?? (parseFloat(rw.ident1) * 10);
     if (!isFinite(hdg) || isNaN(hdg)) return;
-    const key = Math.round(hdg) % 180;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push({ rw, hdg: rw.heading_deg ?? (parseFloat(rw.ident1) * 10) });
+    // Ensure hdg is in [0, 360)
+    hdg = ((hdg % 360) + 360) % 360;
+    // Normalise to [0, 180): both a runway and its reciprocal map to the same value
+    const normHdg = hdg >= 180 ? hdg - 180 : hdg;
+    rwItems.push({ rw, hdg, normHdg });
   });
+
+  // Sort by normHdg so items that belong together are adjacent
+  rwItems.sort((a, b) => a.normHdg - b.normHdg);
+
+  // Greedy clustering: merge an item into the nearest group whose running mean
+  // normHdg is within CLUSTER_THRESHOLD degrees (circular distance on [0, 180)).
+  const groups = []; // each entry: { meanNorm, meanHdg, items[] }
+  for (const item of rwItems) {
+    let bestGroup = null, bestDiff = Infinity;
+    for (const g of groups) {
+      let diff = Math.abs(item.normHdg - g.meanNorm);
+      if (diff > 90) diff = 180 - diff;   // circular wrap on [0, 180)
+      if (diff < bestDiff) { bestDiff = diff; bestGroup = g; }
+    }
+    if (bestGroup && bestDiff <= CLUSTER_THRESHOLD) {
+      bestGroup.items.push(item);
+      const cnt = bestGroup.items.length;
+      bestGroup.meanNorm = bestGroup.items.reduce((s, x) => s + x.normHdg, 0) / cnt;
+      bestGroup.meanHdg  = bestGroup.items.reduce((s, x) => s + x.hdg,     0) / cnt;
+    } else {
+      groups.push({ meanNorm: item.normHdg, meanHdg: item.hdg, items: [item] });
+    }
+  }
 
   const maxLen = runways.reduce((m, r) => Math.max(m, r.length_ft || 5000), 1);
   const rwMaxLen = R * 0.76;
-  const PARALLEL_SPACING = 15;
+  const PARALLEL_SPACING = 14;
 
-  Object.values(groups).forEach(group => {
-    const n = group.length;
+  groups.forEach(group => {
+    const n = group.items.length;
 
-    // Sort L → C/none → R within each parallel group
-    const modOrder = { 'L': 0, 'C': 1, 'R': 2 };
-    group.sort((a, b) => {
-      const ma = (a.rw.ident1 || '').slice(-1);
-      const mb = (b.rw.ident1 || '').slice(-1);
-      return (modOrder[ma] ?? 1) - (modOrder[mb] ?? 1);
+    // Sort within the cluster: by runway number ascending, then L < C/none < R.
+    // This matches the physical lateral order at multi-parallel airports.
+    const modOrder = { 'L': 0, 'C': 1, '': 1, 'R': 2 };
+    group.items.sort((a, b) => {
+      const pa = parseIdent(a.rw.ident1), pb = parseIdent(b.rw.ident1);
+      if (pa.num !== pb.num) return pa.num - pb.num;
+      return (modOrder[pa.mod] ?? 1) - (modOrder[pb.mod] ?? 1);
     });
 
-    group.forEach(({ rw, hdg }, idx) => {
-      const rad = (hdg - 90) * Math.PI / 180;
+    // All runways in the cluster are drawn at the cluster's mean heading
+    const rad = (group.meanHdg - 90) * Math.PI / 180;
 
-      // Lateral offset (perpendicular to runway heading)
+    group.items.forEach(({ rw }, idx) => {
+      // Lateral offset perpendicular to the (shared) runway direction
       const lateralOffset = n > 1 ? (idx - (n - 1) / 2) * PARALLEL_SPACING : 0;
       const offX =  Math.sin(rad) * lateralOffset;
       const offY = -Math.cos(rad) * lateralOffset;
 
-      // Scale length relative to longest runway
+      // Scale length relative to the longest runway
       const lenFt  = rw.length_ft || 5000;
       const rwLen  = rwMaxLen * (0.15 + 0.85 * (lenFt / maxLen));
       const rwHalf = rwLen / 2;
-      const rwW    = n > 1 ? 7 : 10;
+      // Narrow runway boxes when many are clustered together
+      const rwW    = n > 1 ? Math.max(5, 9 - n) : 10;
 
       const x1 = cx + offX + rwHalf * Math.cos(rad);
       const y1 = cy + offY + rwHalf * Math.sin(rad);
