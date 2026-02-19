@@ -208,7 +208,7 @@
   .cloud-alt   { color: var(--text); }
   .cloud-type  { color: var(--muted); font-size: 11px; }
 
-  /* Runway table */
+  /* Runway table — desktop */
   .rw-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }
   .rw-table th {
     text-align: left; padding: 6px 10px;
@@ -223,6 +223,38 @@
   .rw-width  { color: var(--text); }
   .rw-surf   { color: var(--green); text-transform: uppercase; font-size: 11px; }
   .rw-hdg    { color: var(--muted); }
+
+  /* Runway cards — mobile */
+  .rw-cards { display: none; flex-direction: column; gap: 8px; padding: 10px; }
+  .rw-card {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+    padding: 10px 12px;
+  }
+  .rw-card-title {
+    font-family: var(--mono); font-size: 18px; color: var(--warn);
+    letter-spacing: 0.1em; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .rw-card-title .rw-sep { color: var(--muted); font-size: 14px; }
+  .rw-card-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px;
+  }
+  .rw-card-item {}
+  .rw-card-label {
+    font-family: var(--mono); font-size: 8px; letter-spacing: 0.2em;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 2px;
+  }
+  .rw-card-value {
+    font-family: var(--mono); font-size: 13px; color: var(--text);
+  }
+  .rw-card-value.cv-len   { color: var(--accent); }
+  .rw-card-value.cv-surf  { color: var(--green); text-transform: uppercase; font-size: 11px; }
+  .rw-card-value.cv-hdg   { color: var(--muted); }
+
+  @media (max-width: 600px) {
+    .rw-table-wrap { display: none; }
+    .rw-cards { display: flex; }
+  }
 
   /* Loading spinner */
   .spinner {
@@ -341,7 +373,8 @@
         <div class="dot" style="background:var(--accent)"></div>
         RUNWAYS
       </div>
-      <div style="overflow-x:auto">
+      <!-- Desktop table -->
+      <div class="rw-table-wrap" style="overflow-x:auto">
         <table class="rw-table" id="runwayTable">
           <thead>
             <tr>
@@ -357,6 +390,8 @@
           <tbody id="runwayTableBody"></tbody>
         </table>
       </div>
+      <!-- Mobile cards -->
+      <div class="rw-cards" id="runwayCards"></div>
     </div>
 
   </div>
@@ -448,6 +483,7 @@ function renderRunwayList() {
   const fmt = (v, unit) => (v != null && v !== '') ? `${v} ${unit}` : '---';
   const fmtHdg = v => (v != null && isFinite(v)) ? `${parseFloat(v).toFixed(1)}°` : '---';
 
+  // Desktop table rows
   tbody.innerHTML = runways.map(rw => {
     const surf = (rw.surface || '---').replace(/_/g, ' ');
     return `<tr>
@@ -459,6 +495,32 @@ function renderRunwayList() {
       <td class="rw-hdg">${fmtHdg(rw.bearing1)}</td>
       <td class="rw-hdg">${fmtHdg(rw.bearing2)}</td>
     </tr>`;
+  }).join('');
+
+  // Mobile cards
+  const cardsEl = document.getElementById('runwayCards');
+  cardsEl.innerHTML = runways.map(rw => {
+    const surf = (rw.surface || '---').replace(/_/g, ' ');
+    const fields = [
+      { label: 'LENGTH',  value: fmt(rw.length_ft, 'ft'), cls: 'cv-len'  },
+      { label: 'WIDTH',   value: fmt(rw.width_ft,  'ft'), cls: ''        },
+      { label: 'SURFACE', value: surf,                    cls: 'cv-surf' },
+      { label: 'HDG 1',   value: fmtHdg(rw.bearing1),    cls: 'cv-hdg'  },
+      { label: 'HDG 2',   value: fmtHdg(rw.bearing2),    cls: 'cv-hdg'  },
+    ];
+    return `<div class="rw-card">
+      <div class="rw-card-title">
+        ${rw.ident1 || '---'}
+        <span class="rw-sep">/</span>
+        ${rw.ident2 || '---'}
+      </div>
+      <div class="rw-card-grid">${fields.map(f =>
+        `<div class="rw-card-item">
+          <div class="rw-card-label">${f.label}</div>
+          <div class="rw-card-value ${f.cls}">${f.value}</div>
+        </div>`).join('')}
+      </div>
+    </div>`;
   }).join('');
 }
 
